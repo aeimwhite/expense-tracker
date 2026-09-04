@@ -889,8 +889,11 @@ function App() {
   const todayKey = (()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;})();
   const todaySpent = Number((dailyEntries[todayKey]||[]).reduce((s,e)=>s+Number(e.amount||0),0));
 
-  const dynamicDailyAvailable = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
-  const todayRemaining = dailyAvailable - todaySpent;
+  // คำนวณงบรายวันจากงบที่เหลือก่อนหักรายจ่ายของ "วันนี้"
+  // เพื่อไม่ให้ยอดที่ใช้ไปวันนี้ถูกนำมาหักซ้ำในตัวเลข "ใช้ได้วันละ"
+  const remainingBeforeToday = remaining + todaySpent;
+  const dynamicDailyAvailable = daysLeft > 0 ? Math.max(0, remainingBeforeToday) / daysLeft : 0;
+  const todayRemaining = dynamicDailyAvailable - todaySpent;
 
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
@@ -1075,7 +1078,7 @@ function App() {
                 <span style={{fontSize:25,fontWeight:800,color:remaining<0?"#FCA5A5":"#fff"}}>฿{fmt(dynamicDailyAvailable)}</span>
                 <span style={{fontSize:10,color:"#D1FAE5"}}>/ วัน</span>
               </div>
-              <div style={{fontSize:10,color:"#D1FAE5",marginTop:2}}>เงินคงเหลือ ฿{fmt(Math.max(0,remaining))} ÷ {daysLeft} วัน{isCurrentMonth?"ที่เหลือ (รวมวันนี้)":"ในเดือนนี้"}</div>
+              <div style={{fontSize:10,color:"#D1FAE5",marginTop:2}}>งบก่อนหักวันนี้ ฿{fmt(Math.max(0,remainingBeforeToday))} ÷ {daysLeft} วัน{isCurrentMonth?"ที่เหลือ (รวมวันนี้)":"ในเดือนนี้"}</div>
               <div style={{marginTop:7,fontSize:12,color:todayRemaining>=0?"#D1FAE5":"#FCA5A5"}}>
                 วันนี้ใช้ไป ฿{fmt(todaySpent)} · <strong>{todayRemaining>=0?`เหลือใช้วันนี้ ฿${fmt(todayRemaining)}`:`เกินงบวันนี้ ฿${fmt(Math.abs(todayRemaining))}`}</strong>
               </div>
