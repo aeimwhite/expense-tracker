@@ -872,14 +872,7 @@ function App() {
   const totalFixed = (fixedExpenses || [])
       .filter(e => !!paidFixed[e.id])
       .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  const totalVar = Object.entries(dailyEntries || {}).reduce((sum, [dateKey, entries]) => {
-    const dKey = String(dateKey);
-    const today = new Date();
-    const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
-    // Future entries are plans only; they do not affect current real-money balance.
-    if (dKey > todayKey) return sum;
-    return sum + (entries || []).reduce((s, e) => s + Number(e.amount || 0), 0);
-  }, 0);
+  const totalVar   = Object.values(dailyEntries).flat().reduce((s,i)=>s+Number(i.amount||0),0);
   const totalSavings = savingItems.reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
   // งบรายจ่ายคำนวณอัตโนมัติ: รายรับ - เงินออม - รายจ่ายประจำ
   const spendableBudget = Math.max(0, income - totalSavings - totalFixed);
