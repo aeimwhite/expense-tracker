@@ -848,11 +848,27 @@ function App() {
           if(!lt){ lv={...lv,_updatedAt:Date.now()}; lsSet(key,lv); lt=lv._updatedAt; }
           if(await cloudPost(key,lv,endpoint)) pushed++;
         }else if(rr && !lv){
+          // ดึงจากคลาวด์ได้เมื่อเครื่องไม่มีข้อมูล key นี้เท่านั้น
           lsSet(key,{...(rr.data||{}),_updatedAt:rt||Date.now()}); changed=true; pulled++;
         }else if(rr && lv){
-          if(rt>lt || (rt>0 && lt===0)){
+          // ถ้ามีข้อมูลทั้งสองฝั่ง ใช้ timestamp ตัดสิน แต่ห้ามเขียนข้อมูลว่างทับข้อมูลจริง
+          const localHasContent = lv && typeof lv === "object" && (
+            (key === "raijai_config" && (lv.income!=null || lv.monthlyBudget!=null)) ||
+            (key !== "raijai_config" && (Array.isArray(lv.fixedExpenses) && lv.fixedExpenses.length>0 ||
+              lv.daily && Object.keys(lv.daily).length>0 || lv.savingItems && lv.savingItems.length>0 || lv.paid && Object.keys(lv.paid).length>0))
+          );
+          const remoteHasContent = rr.data && typeof rr.data === "object" && (
+            (key === "raijai_config" && (rr.data.income!=null || rr.data.monthlyBudget!=null)) ||
+            (key !== "raijai_config" && (Array.isArray(rr.data.fixedExpenses) && rr.data.fixedExpenses.length>0 ||
+              rr.data.daily && Object.keys(rr.data.daily).length>0 || rr.data.savingItems && rr.data.savingItems.length>0 || rr.data.paid && Object.keys(rr.data.paid).length>0))
+          );
+          if(remoteHasContent && !localHasContent){
+            lsSet(key,{...(rr.data||{}),_updatedAt:rt||Date.now()}); changed=true; pulled++;
+          }else if(localHasContent && !remoteHasContent){
+            if(await cloudPost(key,lv,endpoint)) pushed++;
+          }else if(rt>lt){
             lsSet(key,{...(rr.data||{}),_updatedAt:rt}); changed=true; pulled++;
-          }else if(lt>rt){
+          }else if(lt>=rt){
             if(await cloudPost(key,lv,endpoint)) pushed++;
           }
         }
@@ -863,6 +879,16 @@ function App() {
         if(cfgNow){ if(cfgNow.income!=null) setIncome(cfgNow.income); if(cfgNow.savingGoal!=null) setSavingGoal(cfgNow.savingGoal); if(cfgNow.monthlyBudget!=null) setMonthlyBudget(cfgNow.monthlyBudget); }
         const mdNow=lsGet(monthKey);
         if(mdNow){ setFixed(mdNow.fixedExpenses||DEFAULT_FIXED); setDaily(mdNow.daily||{}); setPaid(mdNow.paid||{}); setSavingItems(mdNow.savingItems||[]); }
+      }
+      // ถ้าซิงก์เสร็จแล้วและเดือนนี้ไม่มีทั้งในเครื่องและคลาวด์ ค่อยสร้างเดือนใหม่
+      if(!lsGet(monthKey)){
+        const prevFixed = getPrevFixed(year, month);
+        const copiedFixed = prevFixed.map(e => ({...e}));
+        const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:2,_updatedAt:Date.now()};
+        lsSet(monthKey,fresh);
+        queueCloudSave(monthKey,fresh);
+        setFixed(copiedFixed); setDaily({}); setPaid({}); setSavingItems([]);
+        setDailyBudgetSnapshots({}); setDailyBudgetSnapshotVersion(2); setIsNewMonth(true);
       }
       setSyncStatus(`✅ ซิงก์สำเร็จ${pulled?` • ดึง ${pulled}`:""}${pushed?` • อัป ${pushed}`:""}`);
     }catch(err){ console.warn(err); if(!quiet) setSyncStatus("❌ ซิงก์ไม่สำเร็จ ตรวจ URL / สิทธิ์ Web App / อินเทอร์เน็ต"); }
@@ -900,6 +926,10 @@ function App() {
       setDailyBudgetSnapshotVersion(Number(md.dailyBudgetSnapshotVersion) || 0);
       setIsNewMonth(false);
     } else {
+      // ถ้ามี Google Sync ให้รอ sync รอบแรกก่อน ห้ามสร้างเดือนว่างทับข้อมูลบนคลาวด์
+      const configuredSyncUrl = localStorage.getItem("raijai_sync_url") || "";
+      if(validSyncUrl(configuredSyncUrl)) return;
+
       // เดือนใหม่ — copy รายจ่ายประจำจากเดือนก่อนเป็น starting point
       // แล้วบันทึกเป็นข้อมูลของเดือนนี้ทันที เพื่อให้แต่ละเดือนแยกอิสระจากกัน
       const prevFixed = getPrevFixed(year, month);
@@ -1049,9 +1079,14 @@ function App() {
   const savedTodayAllowance = todaySnapshotKey
     ? Number(dailyBudgetSnapshots[todaySnapshotKey])
     : NaN;
-  const todayAllowance = Number.isFinite(savedTodayAllowance) && savedTodayAllowance >= 0
-    ? savedTodayAllowance
-    : (daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0);
+  // ถ้าวันนี้ยังไม่มีรายจ่าย ให้ยึดเงินจริงคงเหลือปัจจุบันเป็นจุดตั้งต้น
+  // เพื่อแก้ snapshot เก่าที่ผิด โดยไม่ทำให้ snapshot เปลี่ยนหลังเริ่มใช้เงินแล้ว
+  const baseTodayAllowance = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
+  const todayAllowance = todaySpent === 0
+    ? baseTodayAllowance
+    : (Number.isFinite(savedTodayAllowance) && savedTodayAllowance >= 0
+        ? savedTodayAllowance
+        : baseTodayAllowance);
   const todayRemaining = Math.max(0, todayAllowance - todaySpent);
 
   useEffect(()=>{
@@ -1069,8 +1104,16 @@ function App() {
       changed = true;
     }
 
-    if(current[todaySnapshotKey] == null){
+    // ถ้าวันนี้ยังไม่ได้ใช้เงิน ให้ซ่อม snapshot เป็นสูตรเงินจริงคงเหลือ ÷ วันที่เหลือ
+    // ถ้าใช้ไปแล้ว จะคง snapshot เดิมไว้ เพื่อไม่ให้งบวันนี้ลดตามรายการที่เพิ่ม
+    if(todaySpent === 0){
       const initialAllowance = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
+      if(current[todaySnapshotKey] !== initialAllowance){
+        current = {...current, [todaySnapshotKey]: initialAllowance};
+        changed = true;
+      }
+    } else if(current[todaySnapshotKey] == null){
+      const initialAllowance = daysLeft > 0 ? Math.max(0, remaining + todaySpent) / daysLeft : 0;
       current = {...current, [todaySnapshotKey]: initialAllowance};
       changed = true;
     }
@@ -1080,7 +1123,7 @@ function App() {
       setDailyBudgetSnapshotVersion(2);
       saveMonth(null,null,null,null,current);
     }
-  },[todaySnapshotKey,syncReady,dailyBudgetSnapshotVersion]);
+  },[todaySnapshotKey,syncReady,dailyBudgetSnapshotVersion,todaySpent,remaining,daysLeft]);
 
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
