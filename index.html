@@ -894,6 +894,7 @@ function App() {
       setDaily(md.daily || {});
       setPaid(md.paid   || {});
       setSavingItems(md.savingItems || []);
+      setDailyBudgetSnapshots(md.dailyBudgetSnapshots || {});
       setIsNewMonth(false);
     } else {
       // เดือนใหม่ — copy รายจ่ายประจำจากเดือนก่อนเป็น starting point
@@ -904,11 +905,12 @@ function App() {
       setFixed(copiedFixed);
       setDaily({});
       setPaid({});
+      setDailyBudgetSnapshots({});
       setIsNewMonth(true);
 
       // สร้าง snapshot ของเดือนใหม่ทันที
       // หลังจากนี้แก้ไขเดือนนี้จะไม่ไปดึง/เปลี่ยนตามเดือนก่อนอีก
-      const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],_updatedAt:Date.now()};
+      const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},_updatedAt:Date.now()};
       setSavingItems([]);
       lsSet(monthKey,fresh);
       queueCloudSave(monthKey,fresh);
@@ -969,12 +971,13 @@ function App() {
     },800);
   };
 
-  const saveMonth = (fixed, daily, paid, savingsList) => {
+  const saveMonth = (fixed, daily, paid, savingsList, budgetSnapshots) => {
     const data={
       fixedExpenses: fixed ?? fixedExpenses,
       daily: daily ?? dailyEntries,
       paid:  paid  ?? paidFixed,
       savingItems: savingsList ?? savingItems,
+      dailyBudgetSnapshots: budgetSnapshots ?? dailyBudgetSnapshots,
       _updatedAt: Date.now(),
     };
     lsSet(monthKey,data);
@@ -1034,13 +1037,25 @@ function App() {
     ? Number((dailyEntries[todayKey] || []).reduce((s,e)=>s+Number(e.amount||0),0))
     : 0;
 
-  // งบใช้ได้ต่อวัน = เงินคงเหลือจริง ÷ จำนวนวันที่เหลือ
-  // รายจ่ายวันนี้ถูกหักจากเงินจริงคงเหลือแล้ว จึงไม่บวก todaySpent กลับเข้าไป
-  const dynamicDailyAvailable = daysLeft > 0
-    ? Math.max(0, remaining) / daysLeft
-    : 0;
-  const todayAllowance = dynamicDailyAvailable;
+  // งบวันนี้ล็อกไว้ตั้งแต่ครั้งแรกที่เปิดดูวันนี้
+  const todaySnapshotKey = isTodayInSelectedMonth
+    ? `${year}-${String(month).padStart(2,"0")}-${String(todayDate.getDate()).padStart(2,"0")}`
+    : null;
+  const savedTodayAllowance = todaySnapshotKey
+    ? Number(dailyBudgetSnapshots[todaySnapshotKey])
+    : NaN;
+  const todayAllowance = Number.isFinite(savedTodayAllowance) && savedTodayAllowance >= 0
+    ? savedTodayAllowance
+    : (daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0);
   const todayRemaining = Math.max(0, todayAllowance - todaySpent);
+
+  useEffect(()=>{
+    if(!todaySnapshotKey || !syncReady || dailyBudgetSnapshots[todaySnapshotKey] != null) return;
+    const initialAllowance = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
+    const upd = {...dailyBudgetSnapshots, [todaySnapshotKey]: initialAllowance};
+    setDailyBudgetSnapshots(upd);
+    saveMonth(null,null,null,null,upd);
+  },[todaySnapshotKey,syncReady,dailyBudgetSnapshots,daysLeft,remaining]);
 
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
