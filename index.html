@@ -349,7 +349,7 @@ input, select { max-width:100%; }
 const { useState, useEffect, useRef } = React;
 
 const DEFAULT_FIXED = [
-  { id:"rent",    name:"ค่าห้อง",       amount:3600 },
+  { id:"rent",    name:"ค่าห้อง",       amount:3600 , category:"📦 อื่น ๆ", checked:false},
   { id:"ais",     name:"AIS",           amount:2882.93 },
   { id:"father",  name:"ให้พ่อ",         amount:500 },
   { id:"spay",    name:"Spay เงินสด",   amount:725.22 },
@@ -869,8 +869,17 @@ function App() {
     lsSet("raijai_config",data); queueCloudSave("raijai_config",data);
   };
 
-  const totalFixed = fixedExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
-  const totalVar   = Object.values(dailyEntries).flat().reduce((s,i)=>s+Number(i.amount||0),0);
+  const totalFixed = (fixedExpenses || [])
+      .filter(e => !!paidFixed[e.id])
+      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const totalVar = Object.entries(dailyEntries || {}).reduce((sum, [dateKey, entries]) => {
+    const dKey = String(dateKey);
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+    // Future entries are plans only; they do not affect current real-money balance.
+    if (dKey > todayKey) return sum;
+    return sum + (entries || []).reduce((s, e) => s + Number(e.amount || 0), 0);
+  }, 0);
   const totalSavings = savingItems.reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
   // งบรายจ่ายคำนวณอัตโนมัติ: รายรับ - เงินออม - รายจ่ายประจำ
   const spendableBudget = Math.max(0, income - totalSavings - totalFixed);
@@ -891,7 +900,10 @@ function App() {
   const todaySpent = Number((dailyEntries[todayKey]||[]).reduce((s,e)=>s+Number(e.amount||0),0));
 
   const dynamicDailyAvailable = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
-  const todayRemaining = dynamicDailyAvailable - todaySpent;
+  const todayAllowance = daysLeft > 0
+        ? (Math.max(0, remaining) + todaySpent) / daysLeft
+        : 0;
+      const todayRemaining = todayAllowance - todaySpent;
 
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
@@ -992,7 +1004,7 @@ function App() {
   const annualFixedCategories=Object.entries(ovStats.reduce((acc,m)=>{
     const d=allMonthData[mk(ovYear,m.month)]||{fixedExpenses:[]};
     (d.fixedExpenses||[]).forEach(e=>{
-      if(!e.checked) return;
+      if(!((d.paid ? !!d.paid[e.id] : !!e.checked))) return;
       const c=e.category||"📦 อื่น ๆ";
       acc[c]=(acc[c]||0)+Number(e.amount||0);
     });
@@ -1073,7 +1085,7 @@ function App() {
               <div style={{fontSize:11,color:"#D1FAE5",fontWeight:700}}>📅 ใช้ได้วันละ</div>
 
               <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:2}}>
-                <span style={{fontSize:25,fontWeight:800,color:remaining<0?"#FCA5A5":"#fff"}}>฿{fmt(dynamicDailyAvailable)}</span>
+                <span style={{fontSize:25,fontWeight:800,color:remaining<0?"#FCA5A5":"#fff"}}>฿{fmt(todayAllowance)}</span>
                 <span style={{fontSize:10,color:"#D1FAE5"}}>/ วัน</span>
               </div>
               <div style={{fontSize:10,color:"#D1FAE5",marginTop:2}}>งบเหลือ ฿{fmt(Math.max(0,remaining))} ÷ {daysLeft} วัน{isCurrentMonth?"ที่เหลือ (รวมวันนี้)":"ในเดือนนี้"}</div>
