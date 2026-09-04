@@ -408,6 +408,76 @@ input, select { max-width:100%; }
   color:#7B8794;
 }
 </style>
+
+<style>
+/* UI refresh: Minimal Finance Dashboard — visual only */
+:root{
+  --ui-gap:12px;
+  --ui-radius:14px;
+}
+.card,.summary-card,.stat-card,.panel,.box{
+  border-radius:var(--ui-radius);
+}
+.card,.summary-card,.stat-card,.panel,.box{
+  box-shadow:0 1px 3px rgba(15,23,42,.06);
+}
+.summary-grid,.stats-grid{
+  gap:var(--ui-gap);
+}
+.summary-card,.stat-card{
+  padding:14px;
+}
+.summary-card:first-child,.stat-card:first-child{
+  padding:16px;
+}
+.summary-card:first-child .value,.stat-card:first-child .value,
+.summary-card:first-child .amount,.stat-card:first-child .amount{
+  font-size:clamp(24px,5vw,32px);
+  font-weight:800;
+}
+.section-title{
+  margin-bottom:9px;
+}
+.fixed-item{
+  padding:8px 10px;
+  border-radius:10px;
+}
+.annual-fixed-card{
+  padding:8px 10px;
+}
+.annual-fixed-top,.annual-fixed-bottom{
+  gap:6px;
+}
+.annual-fixed-avg{
+  font-size:10px;
+}
+@media(max-width:600px){
+  .summary-grid,.stats-grid{
+    gap:8px;
+  }
+  .summary-card,.stat-card{
+    padding:10px;
+  }
+  .summary-card:first-child,.stat-card:first-child{
+    padding:12px;
+  }
+  .fixed-item,.annual-fixed-card{
+    padding:7px 8px;
+  }
+  .annual-fixed-card .fx-name{
+    font-size:12px;
+  }
+}
+/* Keep bottom navigation compact and easy to scan */
+nav.bottom-nav,.bottom-nav{
+  padding-top:6px;
+  padding-bottom:calc(6px + env(safe-area-inset-bottom));
+}
+nav.bottom-nav a,.bottom-nav a,
+nav.bottom-nav button,.bottom-nav button{
+  min-height:44px;
+}
+</style>
 </head>
 <body>
 <div id="root"></div>
@@ -962,7 +1032,7 @@ function App() {
   const todayAllowance = daysLeft > 0
         ? (Math.max(0, remaining) + todaySpent) / daysLeft
         : 0;
-      const todayRemaining = todayAllowance - todaySpent;
+  const todayRemaining = Math.max(0, todayAllowance - todaySpent);
 
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
