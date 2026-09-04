@@ -833,16 +833,65 @@ function App() {
     return records;
   };
 
+  const mergeMonthRecords = (localData, remoteData) => {
+    const l = localData && typeof localData === "object" ? localData : {};
+    const r = remoteData && typeof remoteData === "object" ? remoteData : {};
+    const out = {...r};
+
+    // รายจ่ายรายวัน: ห้ามให้ข้อมูลว่างจากอีกฝั่งมาทับข้อมูลที่มีอยู่จริง
+    const ld = l.daily && typeof l.daily === "object" ? l.daily : {};
+    const rd = r.daily && typeof r.daily === "object" ? r.daily : {};
+    const mergedDaily = {...rd};
+    const sameItem = (a,b) => {
+      if(a?.id && b?.id) return a.id === b.id;
+      return String(a?.name||"").trim()===String(b?.name||"").trim()
+        && Number(a?.amount||0)===Number(b?.amount||0)
+        && String(a?.note||"")===String(b?.note||"");
+    };
+    Object.keys(ld).forEach(day=>{
+      const localItems = Array.isArray(ld[day]) ? ld[day] : [];
+      const remoteItems = Array.isArray(mergedDaily[day]) ? mergedDaily[day] : [];
+      if(!remoteItems.length){
+        mergedDaily[day] = localItems.map(x=>({...x}));
+      }else if(localItems.length){
+        const combined = [...remoteItems];
+        localItems.forEach(item=>{
+          if(!combined.some(x=>sameItem(x,item))) combined.push({...item});
+        });
+        mergedDaily[day] = combined;
+      }
+    });
+    out.daily = mergedDaily;
+
+    // เงินออม: ถ้าฝั่งหนึ่งมีรายการ แต่อีกฝั่งไม่มี ให้รักษารายการที่มีไว้
+    const ls = Array.isArray(l.savingItems) ? l.savingItems : [];
+    const rs = Array.isArray(r.savingItems) ? r.savingItems : [];
+    if(ls.length && !rs.length) out.savingItems = ls.map(x=>({...x}));
+    else if(ls.length && rs.length){
+      const combined=[...rs];
+      ls.forEach(item=>{ if(!combined.some(x=>(x.id&&item.id&&x.id===item.id) || (!x.id&&!item.id&&String(x.name)===String(item.name)))) combined.push({...item}); });
+      out.savingItems=combined;
+    }
+
+    // paid: รวมค่า true จากทั้งสองฝั่ง เพื่อป้องกันสถานะจ่ายที่มีอยู่ถูกล้าง
+    out.paid = {...(r.paid||{}), ...(l.paid||{})};
+    // fixed: ถ้าฝั่ง remote ไม่มีรายการ ให้รักษาของ local
+    if((!Array.isArray(r.fixedExpenses) || !r.fixedExpenses.length) && Array.isArray(l.fixedExpenses) && l.fixedExpenses.length){
+      out.fixedExpenses=l.fixedExpenses.map(x=>({...x}));
+    }
+    out.dailyBudgetSnapshots = r.dailyBudgetSnapshots || l.dailyBudgetSnapshots || {};
+    out.dailyBudgetSnapshotVersion = Number(r.dailyBudgetSnapshotVersion || l.dailyBudgetSnapshotVersion || 2);
+    return out;
+  };
+
   const syncNow = async (url=syncUrl, quiet=false) => {
     const endpoint=String(url||"").trim();
     if(!validSyncUrl(endpoint)){ if(!quiet) setSyncStatus("❌ URL Apps Script ไม่ถูกต้อง"); return; }
-    // Sync เป็นงานเบื้องหลัง: UI และ localStorage ไม่ต้องรอเครือข่าย
     setSyncBusy(true); if(!quiet) setSyncStatus("กำลังซิงก์…");
     try{
       const r=await fetch(endpoint+(endpoint.includes("?")?"&":"?")+"action=load&_="+Date.now(),{redirect:"follow",cache:"no-store"});
       const j=await r.json(); if(!j?.ok) throw new Error(j?.error||"load failed");
       const remote=j.records||{}; const local=collectLocalRecords(); let changed=false; let pushed=0; let pulled=0;
-      // จำเวอร์ชันตอนเริ่ม sync เพื่อไม่ให้ผล load ที่ช้า ทับการแก้ไขที่เกิดระหว่างทาง
       const syncVersions = new Map();
       Object.keys(local).forEach(k=>syncVersions.set(k, localWriteVersionRef.current.get(k)||0));
       const keys=new Set([...Object.keys(local),...Object.keys(remote)]);
@@ -850,11 +899,8 @@ function App() {
         let lv=local[key]; const rr=remote[key];
         const changedDuringSync = (localWriteVersionRef.current.get(key)||0) !== (syncVersions.get(key)||0);
         if(changedDuringSync){
-          // ผู้ใช้แก้ข้อมูลหลังเริ่ม sync: ใช้ข้อมูลล่าสุดในเครื่องและอย่า pull ของเก่า
           const latest = lsGet(key);
-          if(latest){
-            if(await cloudPost(key, latest, endpoint)) pushed++;
-          }
+          if(latest){ if(await cloudPost(key, latest, endpoint)) pushed++; }
           continue;
         }
         let lt=Number(lv?._updatedAt)||0; const rt=Number(rr?.updatedAt)||Number(rr?.data?._updatedAt)||0;
@@ -862,24 +908,20 @@ function App() {
           if(!lt){ lv={...lv,_updatedAt:Date.now()}; lsSet(key,lv); lt=lv._updatedAt; }
           if(await cloudPost(key,lv,endpoint)) pushed++;
         }else if(rr && !lv){
-          // ดึงจากคลาวด์ได้เมื่อเครื่องไม่มีข้อมูล key นี้เท่านั้น
           lsSet(key,{...(rr.data||{}),_updatedAt:rt||Date.now()}); changed=true; pulled++;
         }else if(rr && lv){
-          // ถ้ามีข้อมูลทั้งสองฝั่ง ใช้ timestamp ตัดสิน แต่ห้ามเขียนข้อมูลว่างทับข้อมูลจริง
-          const localHasContent = lv && typeof lv === "object" && (
-            (key === "raijai_config" && (lv.income!=null || lv.monthlyBudget!=null)) ||
-            (key !== "raijai_config" && (Array.isArray(lv.fixedExpenses) && lv.fixedExpenses.length>0 ||
-              lv.daily && Object.keys(lv.daily).length>0 || lv.savingItems && lv.savingItems.length>0 || lv.paid && Object.keys(lv.paid).length>0))
-          );
-          const remoteHasContent = rr.data && typeof rr.data === "object" && (
-            (key === "raijai_config" && (rr.data.income!=null || rr.data.monthlyBudget!=null)) ||
-            (key !== "raijai_config" && (Array.isArray(rr.data.fixedExpenses) && rr.data.fixedExpenses.length>0 ||
-              rr.data.daily && Object.keys(rr.data.daily).length>0 || rr.data.savingItems && rr.data.savingItems.length>0 || rr.data.paid && Object.keys(rr.data.paid).length>0))
-          );
-          if(remoteHasContent && !localHasContent){
-            lsSet(key,{...(rr.data||{}),_updatedAt:rt||Date.now()}); changed=true; pulled++;
-          }else if(localHasContent && !remoteHasContent){
-            if(await cloudPost(key,lv,endpoint)) pushed++;
+          if(key !== "raijai_config"){
+            // เดือนรายจ่าย: merge ก่อนเสมอ เพื่อไม่ให้ remote ที่ไม่มี daily/savings มาล้าง local
+            const merged=mergeMonthRecords(lv, rr.data||{});
+            const mergedChanged=JSON.stringify(merged)!==JSON.stringify(lv);
+            if(mergedChanged){
+              merged._updatedAt=Math.max(lt,rt,Date.now());
+              localWriteVersionRef.current.set(key,(localWriteVersionRef.current.get(key)||0)+1);
+              lsSet(key,merged); changed=true;
+              if(await cloudPost(key,merged,endpoint)) pushed++;
+            }else if(lt>rt){
+              if(await cloudPost(key,lv,endpoint)) pushed++;
+            }
           }else if(rt>lt){
             lsSet(key,{...(rr.data||{}),_updatedAt:rt}); changed=true; pulled++;
           }else if(lt>=rt){
@@ -887,22 +929,18 @@ function App() {
           }
         }
       }
-      // ถ้าข้อมูลบนคลาวด์ใหม่กว่า ให้สะท้อนเฉพาะ state ที่กำลังเปิดอยู่ โดยไม่ reload หน้า
       if(changed){
         const cfgNow=lsGet("raijai_config");
         if(cfgNow){ if(cfgNow.income!=null) setIncome(cfgNow.income); if(cfgNow.savingGoal!=null) setSavingGoal(cfgNow.savingGoal); if(cfgNow.monthlyBudget!=null) setMonthlyBudget(cfgNow.monthlyBudget); }
         const mdNow=lsGet(monthKey);
-        if(mdNow){ setFixed(mdNow.fixedExpenses||DEFAULT_FIXED); setDaily(mdNow.daily||{}); setPaid(mdNow.paid||{}); setSavingItems(mdNow.savingItems||[]); }
+        if(mdNow){ setFixed(mdNow.fixedExpenses||DEFAULT_FIXED); setDaily(mdNow.daily||{}); setPaid(mdNow.paid||{}); setSavingItems(mdNow.savingItems||[]); setDailyBudgetSnapshots(mdNow.dailyBudgetSnapshots||{}); setDailyBudgetSnapshotVersion(Number(mdNow.dailyBudgetSnapshotVersion)||2); }
       }
-      // ถ้าซิงก์เสร็จแล้วและเดือนนี้ไม่มีทั้งในเครื่องและคลาวด์ ค่อยสร้างเดือนใหม่
       if(!lsGet(monthKey)){
         const prevFixed = getPrevFixed(year, month);
         const copiedFixed = prevFixed.map(e => ({...e}));
         const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:2,_updatedAt:Date.now()};
-        lsSet(monthKey,fresh);
-        queueCloudSave(monthKey,fresh);
-        setFixed(copiedFixed); setDaily({}); setPaid({}); setSavingItems([]);
-        setDailyBudgetSnapshots({}); setDailyBudgetSnapshotVersion(2); setIsNewMonth(true);
+        lsSet(monthKey,fresh); queueCloudSave(monthKey,fresh);
+        setFixed(copiedFixed); setDaily({}); setPaid({}); setSavingItems([]); setDailyBudgetSnapshots({}); setDailyBudgetSnapshotVersion(2); setIsNewMonth(true);
       }
       setSyncStatus(`✅ ซิงก์สำเร็จ${pulled?` • ดึง ${pulled}`:""}${pushed?` • อัป ${pushed}`:""}`);
     }catch(err){ console.warn(err); if(!quiet) setSyncStatus("❌ ซิงก์ไม่สำเร็จ ตรวจ URL / สิทธิ์ Web App / อินเทอร์เน็ต"); }
@@ -1042,15 +1080,37 @@ function App() {
     a.href=url; a.download=`backup-รายจ่าย-${stamp}.json`; a.click(); URL.revokeObjectURL(url);
   };
   const importBackup = file => {
-    if(!file) return; const reader=new FileReader();
-    reader.onload=e=>{ try{ const data=JSON.parse(e.target.result); if(!data||data.app!=="บันทึกรายจ่าย"||typeof data.months!=="object") throw new Error("invalid");
-      if(!confirm("นำเข้าข้อมูลสำรองจะเขียนทับข้อมูลรายจ่ายที่มีอยู่ในเครื่องนี้ ต้องการดำเนินการต่อหรือไม่?")) return;
-      const keys=[]; for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i); if(k==="raijai_config"||(k&&k.startsWith("raijai_20"))) keys.push(k);} keys.forEach(k=>localStorage.removeItem(k));
-      const stamp=Date.now();
-      if(data.config) lsSet("raijai_config",{...data.config,_updatedAt:stamp});
-      Object.entries(data.months).forEach(([k,v],i)=>lsSet(k,{...v,_updatedAt:stamp+i+1}));
-      alert("นำเข้าข้อมูลสำเร็จแล้ว หากเปิด Google Sync อยู่ ให้กด ‘ซิงก์ตอนนี้’ เพื่ออัปข้อมูลชุดนี้"); location.reload();
-    }catch(err){alert("ไฟล์สำรองไม่ถูกต้อง หรือไฟล์เสียหาย");} }; reader.readAsText(file);
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const data=JSON.parse(e.target.result);
+        if(!data||data.app!=="บันทึกรายจ่าย"||typeof data.months!=="object") throw new Error("invalid");
+        if(!confirm("นำเข้าข้อมูลสำรองจะเขียนทับข้อมูลรายจ่ายที่มีอยู่ในเครื่องนี้ ต้องการดำเนินการต่อหรือไม่?")) return;
+        const keys=[];
+        for(let i=0;i<localStorage.length;i++){
+          const k=localStorage.key(i);
+          if(k==="raijai_config"||(k&&k.startsWith("raijai_20"))) keys.push(k);
+        }
+        keys.forEach(k=>localStorage.removeItem(k));
+        const stamp=Date.now();
+        if(data.config){
+          const cfg={...data.config,_updatedAt:stamp};
+          lsSet("raijai_config",cfg);
+          localWriteVersionRef.current.set("raijai_config",(localWriteVersionRef.current.get("raijai_config")||0)+1);
+          queueCloudSave("raijai_config",cfg);
+        }
+        Object.entries(data.months).forEach(([k,v],i)=>{
+          const imported={...v,_updatedAt:stamp+i+1};
+          lsSet(k,imported);
+          localWriteVersionRef.current.set(k,(localWriteVersionRef.current.get(k)||0)+1);
+          queueCloudSave(k,imported);
+        });
+        alert("นำเข้าข้อมูลสำเร็จแล้ว ข้อมูลที่นำเข้าจะถูกยึดเป็นข้อมูลล่าสุดและอัปขึ้น Google Sync");
+        location.reload();
+      }catch(err){ alert("ไฟล์สำรองไม่ถูกต้อง หรือไฟล์เสียหาย"); }
+    };
+    reader.readAsText(file);
   };
 
   const saveConfig = (inc, goal) => {
