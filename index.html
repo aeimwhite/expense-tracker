@@ -745,6 +745,7 @@ function App() {
   const [month, setMonth] = useState(now.getMonth()+1);
   const [income,     setIncome]     = useState(16925);
   const [savingItems, setSavingItems] = useState([]);
+  const [dailyBudgetSnapshots, setDailyBudgetSnapshots] = useState({});
   const [savingGoal, setSavingGoal] = useState(3000); // เก็บไว้รองรับข้อมูลเก่า
   const [monthlyBudget, setMonthlyBudget] = useState(13925);
   const [fixedExpenses, setFixed]   = useState([]);
