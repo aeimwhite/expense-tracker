@@ -746,6 +746,7 @@ function App() {
   const [income,     setIncome]     = useState(16925);
   const [savingItems, setSavingItems] = useState([]);
   const [dailyBudgetSnapshots, setDailyBudgetSnapshots] = useState({});
+  const [dailyBudgetSnapshotVersion, setDailyBudgetSnapshotVersion] = useState(0);
   const [savingGoal, setSavingGoal] = useState(3000); // เก็บไว้รองรับข้อมูลเก่า
   const [monthlyBudget, setMonthlyBudget] = useState(13925);
   const [fixedExpenses, setFixed]   = useState([]);
@@ -896,6 +897,7 @@ function App() {
       setPaid(md.paid   || {});
       setSavingItems(md.savingItems || []);
       setDailyBudgetSnapshots(md.dailyBudgetSnapshots || {});
+      setDailyBudgetSnapshotVersion(Number(md.dailyBudgetSnapshotVersion) || 0);
       setIsNewMonth(false);
     } else {
       // เดือนใหม่ — copy รายจ่ายประจำจากเดือนก่อนเป็น starting point
@@ -907,11 +909,12 @@ function App() {
       setDaily({});
       setPaid({});
       setDailyBudgetSnapshots({});
+      setDailyBudgetSnapshotVersion(2);
       setIsNewMonth(true);
 
       // สร้าง snapshot ของเดือนใหม่ทันที
       // หลังจากนี้แก้ไขเดือนนี้จะไม่ไปดึง/เปลี่ยนตามเดือนก่อนอีก
-      const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},_updatedAt:Date.now()};
+      const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:2,_updatedAt:Date.now()};
       setSavingItems([]);
       lsSet(monthKey,fresh);
       queueCloudSave(monthKey,fresh);
@@ -979,6 +982,7 @@ function App() {
       paid:  paid  ?? paidFixed,
       savingItems: savingsList ?? savingItems,
       dailyBudgetSnapshots: budgetSnapshots ?? dailyBudgetSnapshots,
+      dailyBudgetSnapshotVersion: 2,
       _updatedAt: Date.now(),
     };
     lsSet(monthKey,data);
@@ -1051,12 +1055,32 @@ function App() {
   const todayRemaining = Math.max(0, todayAllowance - todaySpent);
 
   useEffect(()=>{
-    if(!todaySnapshotKey || !syncReady || dailyBudgetSnapshots[todaySnapshotKey] != null) return;
-    const initialAllowance = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
-    const upd = {...dailyBudgetSnapshots, [todaySnapshotKey]: initialAllowance};
-    setDailyBudgetSnapshots(upd);
-    saveMonth(null,null,null,null,upd);
-  },[todaySnapshotKey,syncReady,dailyBudgetSnapshots,daysLeft,remaining]);
+    if(!todaySnapshotKey || !syncReady) return;
+
+    // เวอร์ชันเก่าบางไฟล์เคยคำนวณงบวันนี้ผิด (เอารายจ่ายวันนี้มาบวกกลับ)
+    // ถ้ายังไม่มี snapshot version 2 ให้ล้างเฉพาะ snapshot ของวันนี้แล้วสร้างใหม่
+    // จาก "เงินจริงคงเหลือ ณ ตอนที่เปิดใช้งานครั้งแรกของวันนี้"
+    let current = dailyBudgetSnapshots;
+    let changed = false;
+
+    if(dailyBudgetSnapshotVersion < 2 && current[todaySnapshotKey] != null){
+      current = {...current};
+      delete current[todaySnapshotKey];
+      changed = true;
+    }
+
+    if(current[todaySnapshotKey] == null){
+      const initialAllowance = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
+      current = {...current, [todaySnapshotKey]: initialAllowance};
+      changed = true;
+    }
+
+    if(dailyBudgetSnapshotVersion < 2 || changed){
+      setDailyBudgetSnapshots(current);
+      setDailyBudgetSnapshotVersion(2);
+      saveMonth(null,null,null,null,current);
+    }
+  },[todaySnapshotKey,syncReady,dailyBudgetSnapshotVersion]);
 
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
