@@ -836,6 +836,7 @@ function App() {
       fixedExpenses: fixed ?? fixedExpenses,
       daily: daily ?? dailyEntries,
       paid:  paid  ?? paidFixed,
+      savingItems: savingsList ?? savingItems,
       _updatedAt: Date.now(),
     };
     lsSet(monthKey,data);
