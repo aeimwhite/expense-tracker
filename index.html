@@ -757,6 +757,7 @@ function App() {
       setFixed(md.fixedExpenses || DEFAULT_FIXED);
       setDaily(md.daily || {});
       setPaid(md.paid   || {});
+      setSavingItems(md.savingItems || []);
       setIsNewMonth(false);
     } else {
       // เดือนใหม่ — copy รายจ่ายประจำจากเดือนก่อนเป็น starting point
@@ -772,6 +773,7 @@ function App() {
       // สร้าง snapshot ของเดือนใหม่ทันที
       // หลังจากนี้แก้ไขเดือนนี้จะไม่ไปดึง/เปลี่ยนตามเดือนก่อนอีก
       const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],_updatedAt:Date.now()};
+      setSavingItems([]);
       lsSet(monthKey,fresh);
       queueCloudSave(monthKey,fresh);
     }
