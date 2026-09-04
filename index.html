@@ -869,17 +869,18 @@ function App() {
     lsSet("raijai_config",data); queueCloudSave("raijai_config",data);
   };
 
-  const totalFixed = fixedExpenses.reduce((s,e)=>s+e.amount,0);
-  const totalVar   = Object.values(dailyEntries).flat().reduce((s,i)=>s+Number(i.amount),0);
-  const totalExp   = totalFixed+totalVar;
+  const totalFixed = fixedExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
+  const totalVar   = Object.values(dailyEntries).flat().reduce((s,i)=>s+Number(i.amount||0),0);
   const totalSavings = savingItems.reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
-  const spendableBudget = Math.max(0, income-totalSavings);
-  const remaining  = spendableBudget-totalExp;
+  // งบรายจ่ายคำนวณอัตโนมัติ: รายรับ - เงินออม - รายจ่ายประจำ
+  const spendableBudget = Math.max(0, income - totalSavings - totalFixed);
+  const remaining  = spendableBudget - totalVar;
+  const totalExp   = totalFixed + totalVar;
   const savings    = totalSavings;
   const goalPct    = income>0?Math.min(100,(totalSavings/income)*100):0;
-  const varBudget  = Math.max(0,spendableBudget-totalFixed);
-  const budgetRemaining = spendableBudget-totalExp;
-  const budgetPct = spendableBudget>0 ? Math.min(100,(totalExp/spendableBudget)*100) : 0;
+  const varBudget  = spendableBudget;
+  const budgetRemaining = remaining;
+  const budgetPct = spendableBudget>0 ? Math.min(100,(totalVar/spendableBudget)*100) : 0;
   const daysInSelectedMonth = new Date(year, month, 0).getDate();
   const today = new Date();
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
@@ -889,10 +890,7 @@ function App() {
   const todayKey = (()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;})();
   const todaySpent = Number((dailyEntries[todayKey]||[]).reduce((s,e)=>s+Number(e.amount||0),0));
 
-  // คำนวณงบรายวันจากงบที่เหลือก่อนหักรายจ่ายของ "วันนี้"
-  // เพื่อไม่ให้ยอดที่ใช้ไปวันนี้ถูกนำมาหักซ้ำในตัวเลข "ใช้ได้วันละ"
-  const remainingBeforeToday = remaining + todaySpent;
-  const dynamicDailyAvailable = daysLeft > 0 ? Math.max(0, remainingBeforeToday) / daysLeft : 0;
+  const dynamicDailyAvailable = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
   const todayRemaining = dynamicDailyAvailable - todaySpent;
 
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
@@ -1054,15 +1052,15 @@ function App() {
             <div style={{fontSize:12,fontWeight:700,color:"#D1FAE5",marginBottom:8}}>📌 งบใช้จ่ายเดือนนี้</div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
               <div style={{fontSize:22,fontWeight:800,color:budgetRemaining<0?"#FCA5A5":"#fff"}}>฿{fmt(Math.abs(budgetRemaining))}{budgetRemaining<0&&" เกิน"}</div>
-              <Editable value={monthlyBudget} onSave={saveBudget} prefix="฿" style={{fontSize:11,color:"#D1FAE5"}}/>
+              <span style={{fontSize:10,color:"#D1FAE5"}}>คำนวณอัตโนมัติ</span>
             </div>
-            <div style={{fontSize:10,color:"#D1FAE5",marginBottom:7}}>หลังหักออม ฿{fmt(totalSavings)} · งบใช้จ่าย ฿{fmt(spendableBudget)} · ใช้ไป {budgetPct.toFixed(0)}%</div>
+            <div style={{fontSize:10,color:"#D1FAE5",marginBottom:7}}>รายรับ ฿{fmt(income)} − ออม ฿{fmt(totalSavings)} − รายจ่ายประจำ ฿{fmt(totalFixed)} · รายวันใช้ไป {budgetPct.toFixed(0)}%</div>
             <div className="progress-bar" style={{background:"rgba(255,255,255,.15)",marginBottom:10}}><div className="progress-fill" style={{width:`${Math.min(100,budgetPct)}%`,background:budgetPct>100?"#FCA5A5":budgetPct>=80?"#FBBF24":"#B7E4C7"}}/></div>
             <div className="balance-label">💵 เงินคงเหลือที่จ่ายได้อีก</div>
             <div className="balance-amount" style={{color:remaining<0?"#FCA5A5":"#fff"}}>
               ฿{fmt(Math.abs(remaining))}{remaining<0&&<span style={{fontSize:14,marginLeft:6}}>⚠️ เกินงบ</span>}
             </div>
-            <div className="balance-sub">รายได้ ฿{fmt(income)} − เงินออม ฿{fmt(totalSavings)} − รายจ่าย ฿{fmt(totalExp)}</div>
+            <div className="balance-sub">รายได้ ฿{fmt(income)} − เงินออม ฿{fmt(totalSavings)} − รายจ่ายประจำ ฿{fmt(totalFixed)} − รายวัน ฿{fmt(totalVar)}</div>
             <div className="balance-row">
               <div className="balance-mini"><div className="bm-label">รายจ่ายคงที่</div><div className="bm-val">฿{fmt(totalFixed)}</div></div>
               <div className="balance-mini"><div className="bm-label">รายวัน</div><div className="bm-val">฿{fmt(totalVar)}</div></div>
@@ -1078,7 +1076,7 @@ function App() {
                 <span style={{fontSize:25,fontWeight:800,color:remaining<0?"#FCA5A5":"#fff"}}>฿{fmt(dynamicDailyAvailable)}</span>
                 <span style={{fontSize:10,color:"#D1FAE5"}}>/ วัน</span>
               </div>
-              <div style={{fontSize:10,color:"#D1FAE5",marginTop:2}}>งบก่อนหักวันนี้ ฿{fmt(Math.max(0,remainingBeforeToday))} ÷ {daysLeft} วัน{isCurrentMonth?"ที่เหลือ (รวมวันนี้)":"ในเดือนนี้"}</div>
+              <div style={{fontSize:10,color:"#D1FAE5",marginTop:2}}>งบเหลือ ฿{fmt(Math.max(0,remaining))} ÷ {daysLeft} วัน{isCurrentMonth?"ที่เหลือ (รวมวันนี้)":"ในเดือนนี้"}</div>
               <div style={{marginTop:7,fontSize:12,color:todayRemaining>=0?"#D1FAE5":"#FCA5A5"}}>
                 วันนี้ใช้ไป ฿{fmt(todaySpent)} · <strong>{todayRemaining>=0?`เหลือใช้วันนี้ ฿${fmt(todayRemaining)}`:`เกินงบวันนี้ ฿${fmt(Math.abs(todayRemaining))}`}</strong>
               </div>
