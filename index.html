@@ -254,9 +254,10 @@ const css = `
 .fx-ov-bar-fill{height:100%;border-radius:99px;background:#1B4332;}
 .fx-ov-pct{font-size:11px;color:#9CA3AF;width:28px;text-align:right;}
 .fx-ov-amt{font-size:14px;font-weight:700;color:#1B4332;min-width:80px;text-align:right;}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;display:flex;align-items:flex-end;justify-content:center;}
-.modal{background:#fff;border-radius:24px 24px 0 0;padding:24px 20px 40px;width:100%;max-width:480px;}
-.modal-title{font-size:18px;font-weight:700;color:#1B4332;margin-bottom:18px;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;padding:0 0 12px;box-sizing:border-box;}
+.modal{position:relative;background:#fff;border-radius:24px 24px 24px 24px;padding:24px 20px 40px;width:100%;max-width:480px;max-height:calc(100dvh - 24px);box-sizing:border-box;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.modal-title{font-size:18px;font-weight:700;color:#1B4332;margin-bottom:18px;padding-right:40px;}
+.modal-close{position:absolute;right:14px;top:12px;width:36px;height:36px;border:none;border-radius:50%;background:#F3F4F6;color:#374151;font-size:24px;line-height:36px;text-align:center;cursor:pointer;}
 .modal-tabs{display:flex;background:#F3F4F6;border-radius:10px;padding:3px;margin-bottom:18px;}
 .modal-tab{flex:1;padding:8px;text-align:center;font-family:'Sarabun',sans-serif;font-size:14px;font-weight:600;border:none;border-radius:8px;cursor:pointer;background:transparent;color:#6B7280;}
 .modal-tab.active{background:#fff;color:#1B4332;box-shadow:0 1px 4px rgba(0,0,0,0.1);}
@@ -296,12 +297,43 @@ function App() {
   const [syncUrl, setSyncUrl] = useState(()=>localStorage.getItem("raijai_sync_url")||"");
   const [syncStatus, setSyncStatus] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
-  const [syncReady, setSyncReady] = useState(false);
+  const [syncReady, setSyncReady] = useState(true);
+  const syncTimerRef = useRef(null);
+  const syncInFlightRef = useRef(false);
+  const syncPendingRef = useRef(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [fCategory, setFCategory] = useState(CATEGORIES[0]);
   const [fNote, setFNote] = useState("");
   const [lastDeleted, setLastDeleted] = useState(null);
+
+  // Lock the page behind the modal so only the modal itself can scroll.
+  useEffect(() => {
+    if (!modal) return;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    const body = document.body;
+    const html = document.documentElement;
+    const prev = {
+      position: body.style.position, top: body.style.top, width: body.style.width,
+      overflow: body.style.overflow, touchAction: body.style.touchAction,
+      htmlOverflow: html.style.overflow
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    body.style.touchAction = "none";
+    html.style.overflow = "hidden";
+    return () => {
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.width = prev.width;
+      body.style.overflow = prev.overflow;
+      body.style.touchAction = prev.touchAction;
+      html.style.overflow = prev.htmlOverflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [modal]);
 
   const mk = (y,m) => `raijai_${y}-${String(m).padStart(2,"0")}`;
   const monthKey = mk(year,month);
@@ -366,13 +398,13 @@ function App() {
     localStorage.setItem("raijai_sync_url",u); setSyncUrl(u); setSyncStatus("✅ บันทึก URL แล้ว กด ‘ซิงก์ตอนนี้’ ได้เลย");
   };
 
-  // เมื่อเปิดเว็บ ถ้ามี URL ซิงก์ที่บันทึกไว้ ให้ดึงข้อมูลล่าสุดอัตโนมัติ
+  // เปิดเว็บให้แสดงข้อมูลจาก localStorage ทันที แล้วค่อยดึง Google Sheets เบื้องหลัง
   useEffect(()=>{
     const u=localStorage.getItem("raijai_sync_url")||"";
-    if(validSyncUrl(u)) syncNow(u,true); else setSyncReady(true);
+    if(validSyncUrl(u)) setTimeout(()=>syncNow(u,true),50);
   },[]);
 
-  // โหลดข้อมูลเมื่อเปลี่ยนเดือน (รอ cloud รอบแรกก่อน เพื่อไม่สร้างเดือนใหม่ทับข้อมูลจากอีกเครื่อง)
+  // โหลดข้อมูลจากเครื่องทันที ไม่ต้องรอ Google Sync รอบแรก
   useEffect(()=>{
     if(!syncReady) return;
     const cfg = lsGet("raijai_config");
@@ -402,7 +434,7 @@ function App() {
       // หลังจากนี้แก้ไขเดือนนี้จะไม่ไปดึง/เปลี่ยนตามเดือนก่อนอีก
       const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},_updatedAt:Date.now()};
       lsSet(monthKey,fresh);
-      cloudPost(monthKey,fresh);
+      queueCloudSave(monthKey,fresh);
     }
   },[monthKey,syncReady]);
 
@@ -417,6 +449,25 @@ function App() {
   },[tab,ovYear,syncReady]);
 
   // บันทึกข้อมูลเดือนปัจจุบัน
+  const queueCloudSave = (key, data) => {
+    if(!validSyncUrl(syncUrl)) return;
+    // localStorage ถูกบันทึกก่อนเสมอ ส่วน Google Sheets ส่งแบบเบื้องหลัง
+    clearTimeout(syncTimerRef.current);
+    syncPendingRef.current = true;
+    syncTimerRef.current = setTimeout(async ()=>{
+      if(syncInFlightRef.current) return;
+      syncInFlightRef.current = true;
+      syncPendingRef.current = false;
+      setSyncStatus("กำลังซิงก์…");
+      try{
+        const ok = await cloudPost(key,data);
+        if(ok) setSyncStatus("✅ ซิงก์แล้ว");
+      } finally {
+        syncInFlightRef.current = false;
+      }
+    },800);
+  };
+
   const saveMonth = (fixed, daily, paid) => {
     const data={
       fixedExpenses: fixed ?? fixedExpenses,
@@ -425,7 +476,7 @@ function App() {
       _updatedAt: Date.now(),
     };
     lsSet(monthKey,data);
-    cloudPost(monthKey,data);
+    queueCloudSave(monthKey,data);
     setIsNewMonth(false);
   };
   const exportBackup = () => {
@@ -449,7 +500,7 @@ function App() {
 
   const saveConfig = (inc, goal) => {
     const data={income:inc??income,savingGoal:goal??savingGoal,monthlyBudget:monthlyBudget,_updatedAt:Date.now()};
-    lsSet("raijai_config",data); cloudPost("raijai_config",data);
+    lsSet("raijai_config",data); queueCloudSave("raijai_config",data);
   };
 
   const totalFixed = fixedExpenses.reduce((s,e)=>s+e.amount,0);
@@ -500,7 +551,7 @@ function App() {
   const togglePaid = id=>{ const upd={...paidFixed,[id]:!paidFixed[id]}; setPaid(upd); saveMonth(null,null,upd); };
   const saveIncome    = v=>{ const n=Number(v); if(!isNaN(n)&&n>0){setIncome(n);saveConfig(n,null);} };
   const saveGoal      = v=>{ const n=Number(v); if(!isNaN(n)&&n>=0){setSavingGoal(n);saveConfig(null,n);} };
-  const saveBudget = v=>{ const n=Number(v); if(!isNaN(n)&&n>=0){setMonthlyBudget(n); const data={income,savingGoal,monthlyBudget:n,_updatedAt:Date.now()}; lsSet("raijai_config",data); cloudPost("raijai_config",data);} };
+  const saveBudget = v=>{ const n=Number(v); if(!isNaN(n)&&n>=0){setMonthlyBudget(n); const data={income,savingGoal,monthlyBudget:n,_updatedAt:Date.now()}; lsSet("raijai_config",data); queueCloudSave("raijai_config",data);} };
   const saveFixedAmt  = (id,v)=>{ const nf=fixedExpenses.map(e=>e.id===id?{...e,amount:Number(v)}:e); setFixed(nf); saveMonth(nf,null,null); };
   const saveFixedName = (id,v)=>{ const nf=fixedExpenses.map(e=>e.id===id?{...e,name:v}:e); setFixed(nf); saveMonth(nf,null,null); };
   const saveDailyName = (day,idx,v)=>{ const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,name:v}:it)}; setDaily(upd); saveMonth(null,upd,null); };
@@ -846,7 +897,7 @@ function App() {
     {modal&&(
       <div className="overlay" onClick={e=>e.target.className==="overlay"&&setModal(null)}>
         <div className="modal">
-          <div className="modal-title">เพิ่มรายจ่าย</div>
+          <div className="modal-title">เพิ่มรายจ่าย</div><button className="modal-close" aria-label="ปิด" title="ปิด" onClick={()=>setModal(null)}>×</button>
           <div className="modal-tabs">
             <button className={`modal-tab${modalTab==="daily"?" active":""}`} onClick={()=>setModalTab("daily")}>รายวัน</button>
             <button className={`modal-tab${modalTab==="fixed"?" active":""}`} onClick={()=>setModalTab("fixed")}>ประจำเดือน</button>
