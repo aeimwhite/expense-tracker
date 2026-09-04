@@ -342,6 +342,72 @@ input, select { max-width:100%; }
 }
 </style>
 
+
+<style>
+/* Annual fixed expense item cards — compact */
+.two-col-fixed > .fixed-item{
+  padding:9px 12px !important;
+  min-height:0 !important;
+  gap:7px !important;
+}
+.two-col-fixed > .fixed-item .fx-name{
+  font-size:13px !important;
+  line-height:1.2 !important;
+}
+.two-col-fixed > .fixed-item .fx-amt{
+  font-size:13px !important;
+  line-height:1.2 !important;
+}
+.two-col-fixed > .fixed-item > span[style*="font-size:11px"]{
+  font-size:10px !important;
+  margin-right:7px !important;
+}
+@media(max-width:600px){
+  .two-col-fixed{gap:7px 8px !important;}
+  .two-col-fixed > .fixed-item{padding:8px 10px !important;}
+  .two-col-fixed > .fixed-item .fx-name,
+  .two-col-fixed > .fixed-item .fx-amt{font-size:12px !important;}
+  .two-col-fixed > .fixed-item > span[style*="font-size:11px"]{font-size:9px !important;margin-right:5px !important;}
+}
+</style>
+
+
+<style>
+/* Annual fixed-item cards: compact + monthly average */
+.annual-fixed-card{display:flex;flex-direction:column;gap:4px;}
+.annual-fixed-top,.annual-fixed-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;}
+.annual-fixed-months{font-size:10px;color:#9CA3AF;white-space:nowrap;}
+.annual-fixed-bottom .fx-amt{font-size:13px;}
+.annual-fixed-avg{font-size:10px;color:#7B8794;white-space:nowrap;}
+@media(max-width:600px){
+  .annual-fixed-card{padding:7px 9px !important;gap:3px;}
+  .annual-fixed-months{font-size:9px;}
+  .annual-fixed-bottom .fx-amt{font-size:12px;}
+  .annual-fixed-avg{font-size:9px;}
+}
+</style>
+
+<style>
+/* Clarity: actual cash vs planned future spending */
+.future-badge{
+  display:inline-flex;
+  align-items:center;
+  margin-left:6px;
+  padding:2px 6px;
+  border-radius:999px;
+  font-size:9px;
+  line-height:1.2;
+  color:#64748B;
+  background:#F1F5F9;
+  white-space:nowrap;
+}
+.annual-avg-summary{
+  display:block;
+  margin-top:3px;
+  font-size:11px;
+  color:#7B8794;
+}
+</style>
 </head>
 <body>
 <div id="root"></div>
@@ -1075,7 +1141,7 @@ function App() {
               </div>
             </div>
             <div style={{marginTop:12,padding:"12px 14px",borderRadius:14,background:"rgba(255,255,255,.10)",border:"1px solid rgba(255,255,255,.10)"}}>
-              <div style={{fontSize:11,color:"#D1FAE5",fontWeight:700}}>📅 ใช้ได้วันละ</div>
+              <div style={{fontSize:11,color:"#D1FAE5",fontWeight:700}}>📅 งบใช้ได้ต่อวัน</div>
 
               <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:2}}>
                 <span style={{fontSize:25,fontWeight:800,color:remaining<0?"#FCA5A5":"#fff"}}>฿{fmt(todayAllowance)}</span>
@@ -1312,10 +1378,15 @@ function App() {
                 รวมยอดจากแต่ละเดือนจริง — ถ้าบางเดือนไม่มีรายการ จะไม่นับเดือนนั้น
               </div>
               {annualFixedItems.map((e,i)=>(
-                <div className="fixed-item" key={i}>
-                  <span className="fx-name">{e.name}</span>
-                  <span style={{fontSize:11,color:"#9CA3AF",marginLeft:"auto",marginRight:10}}>{e.months} เดือน</span>
-                  <span className="fx-amt">฿{fmt(e.total)}</span>
+                <div className="fixed-item annual-fixed-card" key={i}>
+                  <div className="annual-fixed-top">
+                    <span className="fx-name">{e.name}</span>
+                    <span className="annual-fixed-months">{e.months} เดือน</span>
+                  </div>
+                  <div className="annual-fixed-bottom">
+                    <span className="fx-amt">฿{fmt(e.total)}</span>
+                    <span className="annual-fixed-avg">เฉลี่ย ฿{fmt(e.months>0?e.total/e.months:0)}/เดือน</span>
+                  </div>
                 </div>
               ))}
               <div className="list-footer">
