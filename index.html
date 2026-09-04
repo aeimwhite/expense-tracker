@@ -1034,10 +1034,10 @@ function App() {
     ? Number((dailyEntries[todayKey] || []).reduce((s,e)=>s+Number(e.amount||0),0))
     : 0;
 
-  // งบวันนี้คงที่ตามเงินที่มีตอนเริ่มวัน
-  // รายจ่ายวันนี้หักออกจาก "เหลือใช้วันนี้" แทน
+  // งบใช้ได้ต่อวัน = เงินคงเหลือจริง ÷ จำนวนวันที่เหลือ
+  // รายจ่ายวันนี้ถูกหักจากเงินจริงคงเหลือแล้ว จึงไม่บวก todaySpent กลับเข้าไป
   const dynamicDailyAvailable = daysLeft > 0
-    ? Math.max(0, remaining + todaySpent) / daysLeft
+    ? Math.max(0, remaining) / daysLeft
     : 0;
   const todayAllowance = dynamicDailyAvailable;
   const todayRemaining = Math.max(0, todayAllowance - todaySpent);
@@ -1225,7 +1225,7 @@ function App() {
                 <span style={{fontSize:25,fontWeight:800,color:remaining<0?"#FCA5A5":"#fff"}}>฿{fmt(todayAllowance)}</span>
                 <span style={{fontSize:10,color:"#D1FAE5"}}>/ วัน</span>
               </div>
-              <div style={{fontSize:10,color:"#D1FAE5",marginTop:2}}>เงินสำหรับวันนี้ ฿{fmt(Math.max(0,remaining + todaySpent))} ÷ {daysLeft} วัน{isCurrentMonth?"ที่เหลือ (รวมวันนี้)":"ในเดือนนี้"}</div>
+              <div style={{fontSize:10,color:"#D1FAE5",marginTop:2}}>เงินจริงคงเหลือ ฿{fmt(Math.max(0,remaining))} ÷ {daysLeft} วัน{isCurrentMonth?"ที่เหลือ (รวมวันนี้)":"ในเดือนนี้"}</div>
               <div style={{marginTop:7,fontSize:12,color:todayRemaining>=0?"#D1FAE5":"#FCA5A5"}}>
                 วันนี้ใช้ไป ฿{fmt(todaySpent)} · <strong>{todayRemaining>=0?`เหลือใช้วันนี้ ฿${fmt(todayRemaining)}`:`เกินงบวันนี้ ฿${fmt(Math.abs(todayRemaining))}`}</strong>
               </div>
