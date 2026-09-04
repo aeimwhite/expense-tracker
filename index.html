@@ -772,6 +772,8 @@ function App() {
   const syncInFlightRef = useRef(false);
   const syncPendingRef = useRef(false);
   const syncQueueRef = useRef(new Map());
+  // ป้องกัน Google Sync รอบเก่าทับข้อมูลที่ผู้ใช้เพิ่งแก้ในเครื่อง
+  const localWriteVersionRef = useRef(new Map());
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [fCategory, setFCategory] = useState(CATEGORIES[0]);
@@ -840,9 +842,21 @@ function App() {
       const r=await fetch(endpoint+(endpoint.includes("?")?"&":"?")+"action=load&_="+Date.now(),{redirect:"follow",cache:"no-store"});
       const j=await r.json(); if(!j?.ok) throw new Error(j?.error||"load failed");
       const remote=j.records||{}; const local=collectLocalRecords(); let changed=false; let pushed=0; let pulled=0;
+      // จำเวอร์ชันตอนเริ่ม sync เพื่อไม่ให้ผล load ที่ช้า ทับการแก้ไขที่เกิดระหว่างทาง
+      const syncVersions = new Map();
+      Object.keys(local).forEach(k=>syncVersions.set(k, localWriteVersionRef.current.get(k)||0));
       const keys=new Set([...Object.keys(local),...Object.keys(remote)]);
       for(const key of keys){
         let lv=local[key]; const rr=remote[key];
+        const changedDuringSync = (localWriteVersionRef.current.get(key)||0) !== (syncVersions.get(key)||0);
+        if(changedDuringSync){
+          // ผู้ใช้แก้ข้อมูลหลังเริ่ม sync: ใช้ข้อมูลล่าสุดในเครื่องและอย่า pull ของเก่า
+          const latest = lsGet(key);
+          if(latest){
+            if(await cloudPost(key, latest, endpoint)) pushed++;
+          }
+          continue;
+        }
         let lt=Number(lv?._updatedAt)||0; const rt=Number(rr?.updatedAt)||Number(rr?.data?._updatedAt)||0;
         if(!rr && lv){
           if(!lt){ lv={...lv,_updatedAt:Date.now()}; lsSet(key,lv); lt=lv._updatedAt; }
@@ -1015,6 +1029,7 @@ function App() {
       dailyBudgetSnapshotVersion: 2,
       _updatedAt: Date.now(),
     };
+    localWriteVersionRef.current.set(monthKey, (localWriteVersionRef.current.get(monthKey)||0) + 1);
     lsSet(monthKey,data);
     queueCloudSave(monthKey,data);
     setIsNewMonth(false);
@@ -1040,6 +1055,7 @@ function App() {
 
   const saveConfig = (inc, goal) => {
     const data={income:inc??income,savingGoal:goal??savingGoal,monthlyBudget:monthlyBudget,_updatedAt:Date.now()};
+    localWriteVersionRef.current.set("raijai_config", (localWriteVersionRef.current.get("raijai_config")||0) + 1);
     lsSet("raijai_config",data); queueCloudSave("raijai_config",data);
   };
 
@@ -1163,7 +1179,7 @@ function App() {
   const togglePaid = id=>{ const upd={...paidFixed,[id]:!paidFixed[id]}; setPaid(upd); saveMonth(null,null,upd); };
   const saveIncome    = v=>{ const n=Number(v); if(!isNaN(n)&&n>0){setIncome(n);saveConfig(n,null);} };
   const saveGoal      = v=>{ const n=Number(v); if(!isNaN(n)&&n>=0){setSavingGoal(n);saveConfig(null,n);} };
-  const saveBudget = v=>{ const n=Number(v); if(!isNaN(n)&&n>=0){setMonthlyBudget(n); const data={income,savingGoal,monthlyBudget:n,_updatedAt:Date.now()}; lsSet("raijai_config",data); queueCloudSave("raijai_config",data);} };
+  const saveBudget = v=>{ const n=Number(v); if(!isNaN(n)&&n>=0){setMonthlyBudget(n); const data={income,savingGoal,monthlyBudget:n,_updatedAt:Date.now()}; localWriteVersionRef.current.set("raijai_config", (localWriteVersionRef.current.get("raijai_config")||0) + 1); lsSet("raijai_config",data); queueCloudSave("raijai_config",data);} };
   const saveSavingName = (id,v)=>{
     const items=savingItems.map(x=>x.id===id?{...x,name:String(v).trim()||x.name}:x);
     setSavingItems(items); saveMonth(null,null,null,items);
