@@ -850,7 +850,7 @@ function App() {
     return records;
   };
 
-  const syncNow = async (url=syncUrl, quiet=false) => {
+  const syncNow = async (url=syncUrl, quiet=false, bootstrap=false) => {
     const endpoint=String(url||"").trim();
     if(!validSyncUrl(endpoint)){ if(!quiet) setSyncStatus("❌ URL Apps Script ไม่ถูกต้อง"); return false; }
     // Sync เป็นงานเบื้องหลัง: UI และ localStorage ไม่ต้องรอเครือข่าย
@@ -863,7 +863,7 @@ function App() {
       // prefer non-empty Cloud data over any stale local copy. Do not push local data
       // during this initial background sync. This prevents an old/corrupted local
       // month from winning solely because its timestamp is newer.
-      const initialCloudBootstrap = !sessionStorage.getItem("raijai_cloud_bootstrap_done");
+      const initialCloudBootstrap = !!bootstrap;
       const keys=new Set([...Object.keys(local),...Object.keys(remote)]);
       const parseRemoteData = (rr) => {
         if(!rr) return null;
@@ -928,7 +928,6 @@ function App() {
         const mdNow=lsGet(monthKey);
         if(mdNow){ setFixed(mdNow.fixedExpenses||DEFAULT_FIXED); setDaily(mdNow.daily||{}); setPaid(mdNow.paid||{}); setSavingItems(mdNow.savingItems||[]); setDailyBudgetSnapshots(mdNow.dailyBudgetSnapshots||{}); setDailyBudgetSnapshotVersion(Number(mdNow.dailyBudgetSnapshotVersion)||0); }
       }
-      sessionStorage.setItem("raijai_cloud_bootstrap_done","1");
       setSyncStatus(`✅ ซิงก์สำเร็จ${pulled?` • ดึง ${pulled}`:""}${pushed?` • อัป ${pushed}`:""}`);
       return true;
     }catch(err){ console.warn(err); if(!quiet) setSyncStatus("❌ ซิงก์ไม่สำเร็จ ตรวจ URL / สิทธิ์ Web App / อินเทอร์เน็ต"); return false; }
@@ -948,7 +947,7 @@ function App() {
       // เมื่อเปิดเว็บและมี Cloud Sync: ห้ามสร้าง/เขียน local เดือนก่อน sync สำเร็จ
       setSyncReady(false);
       setTimeout(async()=>{
-        try { await syncNow(u,true); }
+        try { await syncNow(u,true,true); }
         finally { setSyncReady(true); }
       },50);
     } else {
@@ -991,7 +990,7 @@ function App() {
       let remoteMd = null;
       let remoteTs = 0;
       try {
-        const u = String(syncUrl||"").trim();
+        const u = String(localStorage.getItem("raijai_sync_url")||syncUrl||"").trim();
         if(validSyncUrl(u)) {
           const r = await fetch(u+(u.includes("?")?"&":"?")+"action=load&_="+Date.now(),{redirect:"follow",cache:"no-store"});
           const j = await r.json();
@@ -1013,10 +1012,9 @@ function App() {
       const remoteHasData = !!remoteMd && !isEmptyMonthRecord(remoteMd);
       const localHasData = !!localMd && !isEmptyMonthRecord(localMd);
 
-      // For a selected existing month, Google Sheet is the authoritative source.
-      // Do NOT let an older/partial localStorage copy hide a complete Cloud record.
-      // This is especially important after navigating between months, because the
-      // local copy may have been created or modified before Cloud hydration finished.
+      // For a selected existing month, Google Sheet is authoritative whenever it has
+      // a real record. This deliberately ignores local timestamps: old/corrupted local
+      // state must never hide the complete Cloud record when entering a month.
       if(remoteHasData) {
         const cloudData = {...remoteMd,_updatedAt:remoteTs||Number(remoteMd._updatedAt)||Date.now()};
         try{ sessionStorage.setItem(`raijai_cloud_authoritative_${loadingKey}`,"1"); }catch(e){}
@@ -1024,6 +1022,7 @@ function App() {
         // Cancel any stale queued write for this month that could re-overwrite the
         // freshly hydrated Cloud record after navigation. New edits will enqueue again.
         syncQueueRef.current.delete(loadingKey);
+        try{ sessionStorage.setItem(`raijai_cloud_authoritative_${loadingKey}`,"1"); }catch(e){}
         if(activeMonthKeyRef.current === loadingKey) applyMonth(cloudData,false);
         return;
       }
