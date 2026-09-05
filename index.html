@@ -840,6 +840,33 @@ function App() {
       && Array.isArray(data.savingItems) && data.savingItems.length===0;
   };
 
+  // Decode cloud records returned as object, JSON text, or Sheets-style escaped text.
+  const decodeCloudData = (value) => {
+    let d = value;
+    for(let i=0;i<4;i++){
+      if(d && typeof d === "object") return d;
+      if(typeof d !== "string") break;
+      let t = d.trim();
+      if(!t) return null;
+      if(t.includes("<br")) t = t.replace(/<br\s*\/?>(?:\r?\n)?/gi,"\n");
+      try { d = JSON.parse(t); continue; } catch(e) {}
+      if(t.startsWith('"') && t.endsWith('"')) {
+        t = t.slice(1,-1).replace(/""/g,'"');
+        try { d = JSON.parse(t); continue; } catch(e) {}
+      }
+      return null;
+    }
+    return (d && typeof d === "object") ? d : null;
+  };
+
+  const getRemoteRecord = (records,key) => {
+    if(!records || typeof records !== "object") return null;
+    if(records[key] != null) return records[key];
+    const wanted = String(key).trim();
+    const hit = Object.keys(records).find(k => String(k).trim() === wanted);
+    return hit ? records[hit] : null;
+  };
+
   const collectLocalRecords = () => {
     const records={};
     const cfg=lsGet("raijai_config"); if(cfg) records.raijai_config=cfg;
@@ -865,14 +892,7 @@ function App() {
       // month from winning solely because its timestamp is newer.
       const initialCloudBootstrap = !!bootstrap;
       const keys=new Set([...Object.keys(local),...Object.keys(remote)]);
-      const parseRemoteData = (rr) => {
-        if(!rr) return null;
-        let d = rr.data;
-        if(typeof d === "string"){
-          try{ d = JSON.parse(d); }catch(e){ return null; }
-        }
-        return (d && typeof d === "object") ? d : null;
-      };
+      const parseRemoteData = (rr) => decodeCloudData(rr?.data);
       for(const key of keys){
         let lv=local[key]; const rr=remote[key];
         const remoteData = parseRemoteData(rr);
@@ -996,15 +1016,18 @@ function App() {
       const localMd = lsGet(loadingKey);
       let remoteMd = null;
       let remoteTs = 0;
+      let cloudConfigured = false;
+      let cloudLoadSucceeded = false;
       try {
         const u = String(localStorage.getItem("raijai_sync_url")||syncUrl||"").trim();
-        if(validSyncUrl(u)) {
+        cloudConfigured = validSyncUrl(u);
+        if(cloudConfigured) {
           const r = await fetch(u+(u.includes("?")?"&":"?")+"action=load&_="+Date.now(),{redirect:"follow",cache:"no-store"});
           const j = await r.json();
-          const rr = j?.ok ? (j.records||{})[loadingKey] : null;
+          cloudLoadSucceeded = !!j?.ok;
+          const rr = j?.ok ? getRemoteRecord(j.records||{},loadingKey) : null;
           if(rr){
-            let d = rr.data;
-            if(typeof d === "string") { try { d = JSON.parse(d); } catch(e) { d = null; } }
+            const d = decodeCloudData(rr.data);
             if(d && typeof d === "object") {
               remoteMd = d;
               remoteTs = Number(rr.updatedAt)||Number(d._updatedAt)||0;
@@ -1041,7 +1064,17 @@ function App() {
         return;
       }
 
-      // No local/cloud record: create a truly new month only now, after the Cloud check.
+      // A failed Cloud read is not evidence that the month is new. Never copy the
+      // previous month into the selected month when the cloud request failed.
+      if(cloudConfigured && !cloudLoadSucceeded){
+        setFixed([]); setDaily({}); setPaid({}); setSavingItems([]);
+        setDailyBudgetSnapshots({}); setDailyBudgetSnapshotVersion(3);
+        setIsNewMonth(false); setHydratedMonthKey(loadingKey); setMonthDataReady(true);
+        return;
+      }
+
+      // Cloud read succeeded and explicitly has no record (or no Sync is configured):
+      // this is a genuinely new month, so copy the previous month's fixed list.
       const prevFixed = getPrevFixed(year, month);
       const copiedFixed = prevFixed.map(e => ({ ...e }));
       const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:3,_updatedAt:Date.now()};
