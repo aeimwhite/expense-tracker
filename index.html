@@ -859,6 +859,11 @@ function App() {
       const r=await fetch(endpoint+(endpoint.includes("?")?"&":"?")+"action=load&_="+Date.now(),{redirect:"follow",cache:"no-store"});
       const j=await r.json(); if(!j?.ok) throw new Error(j?.error||"load failed");
       const remote=j.records||{}; const local=collectLocalRecords(); let changed=false; let pushed=0; let pulled=0;
+      // First cloud bootstrap: when the page is opened with an existing Cloud record,
+      // prefer non-empty Cloud data over any stale local copy. Do not push local data
+      // during this initial background sync. This prevents an old/corrupted local
+      // month from winning solely because its timestamp is newer.
+      const initialCloudBootstrap = !sessionStorage.getItem("raijai_cloud_bootstrap_done");
       const keys=new Set([...Object.keys(local),...Object.keys(remote)]);
       const parseRemoteData = (rr) => {
         if(!rr) return null;
@@ -877,6 +882,14 @@ function App() {
         const localIsEmptyMonth = isMonthKey && isEmptyMonthRecord(lv);
         const remoteIsEmptyMonth = isMonthKey && (!remoteData || isEmptyMonthRecord(remoteData));
         const remoteHasData = isMonthKey ? !!remoteData && !isEmptyMonthRecord(remoteData) : !!remoteData;
+
+        if(rr && remoteHasData && isMonthKey && initialCloudBootstrap){
+          // FIRST BOOTSTRAP: an existing non-empty Cloud month is authoritative.
+          // Pull it locally and do not push any local version during this pass.
+          const pulledData = {...remoteData,_updatedAt:rt||Date.now()};
+          lsSet(key,pulledData); changed=true; pulled++;
+          continue;
+        }
 
         if(rr && lv && isMonthKey && localIsEmptyMonth && remoteHasData){
           // ABSOLUTE PROTECTION: non-empty cloud month always wins over empty local month,
@@ -915,6 +928,7 @@ function App() {
         const mdNow=lsGet(monthKey);
         if(mdNow){ setFixed(mdNow.fixedExpenses||DEFAULT_FIXED); setDaily(mdNow.daily||{}); setPaid(mdNow.paid||{}); setSavingItems(mdNow.savingItems||[]); setDailyBudgetSnapshots(mdNow.dailyBudgetSnapshots||{}); setDailyBudgetSnapshotVersion(Number(mdNow.dailyBudgetSnapshotVersion)||0); }
       }
+      sessionStorage.setItem("raijai_cloud_bootstrap_done","1");
       setSyncStatus(`✅ ซิงก์สำเร็จ${pulled?` • ดึง ${pulled}`:""}${pushed?` • อัป ${pushed}`:""}`);
       return true;
     }catch(err){ console.warn(err); if(!quiet) setSyncStatus("❌ ซิงก์ไม่สำเร็จ ตรวจ URL / สิทธิ์ Web App / อินเทอร์เน็ต"); return false; }
