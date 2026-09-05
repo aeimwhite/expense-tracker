@@ -1013,14 +1013,24 @@ function App() {
       const remoteHasData = !!remoteMd && !isEmptyMonthRecord(remoteMd);
       const localHasData = !!localMd && !isEmptyMonthRecord(localMd);
 
-      if(remoteHasData && (!localHasData || remoteTs >= localTs)) {
-        const cloudData = {...remoteMd,_updatedAt:remoteTs||Date.now()};
+      // For a selected existing month, Google Sheet is the authoritative source.
+      // Do NOT let an older/partial localStorage copy hide a complete Cloud record.
+      // This is especially important after navigating between months, because the
+      // local copy may have been created or modified before Cloud hydration finished.
+      if(remoteHasData) {
+        const cloudData = {...remoteMd,_updatedAt:remoteTs||Number(remoteMd._updatedAt)||Date.now()};
+        try{ sessionStorage.setItem(`raijai_cloud_authoritative_${loadingKey}`,"1"); }catch(e){}
         lsSet(loadingKey,cloudData);
-        applyMonth(cloudData,false);
+        // Cancel any stale queued write for this month that could re-overwrite the
+        // freshly hydrated Cloud record after navigation. New edits will enqueue again.
+        syncQueueRef.current.delete(loadingKey);
+        if(activeMonthKeyRef.current === loadingKey) applyMonth(cloudData,false);
         return;
       }
 
-      if(localMd) {
+      // If Cloud has no usable data for this month, keep a non-empty local copy.
+      // This preserves unsynced work and existing local-only months.
+      if(localHasData && localMd) {
         applyMonth(localMd,false);
         return;
       }
@@ -1057,6 +1067,12 @@ function App() {
   // บันทึกข้อมูลเดือนปัจจุบัน
   const queueCloudSave = (key, data) => {
     if(!validSyncUrl(syncUrl)) return;
+    // After Cloud has provided a non-empty authoritative month, never allow an empty
+    // callback/state to requeue that month for upload.
+    const isMonthKey = /^raijai_\d{4}-\d{2}$/.test(String(key||""));
+    if(isMonthKey && isEmptyMonthRecord(data)){
+      try{ if(sessionStorage.getItem(`raijai_cloud_authoritative_${key}`)==="1") return; }catch(e){}
+    }
     // เก็บค่าล่าสุดของแต่ละ key ไว้ในคิว: localStorage บันทึกทันที ส่วน cloud ทำงานเบื้องหลัง
     syncQueueRef.current.set(key, data);
     syncPendingRef.current = true;
