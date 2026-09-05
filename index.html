@@ -1021,6 +1021,7 @@ function App() {
       const localMd = lsGet(loadingKey);
       let remoteMd = null;
       let remoteTs = 0;
+      let remoteRecordExists = false;
       let cloudConfigured = false;
       let cloudLoadSucceeded = false;
 
@@ -1033,6 +1034,7 @@ function App() {
           const d = decodeCloudData(cachedRr.data);
           if(d && typeof d === "object") {
             remoteMd = d;
+            remoteRecordExists = true;
             remoteTs = Number(cachedRr.updatedAt)||Number(d._updatedAt)||0;
             cloudConfigured = true;
             cloudLoadSucceeded = true;
@@ -1055,6 +1057,7 @@ function App() {
               const d = decodeCloudData(rr.data);
               if(d && typeof d === "object") {
                 remoteMd = d;
+                remoteRecordExists = true;
                 remoteTs = Number(rr.updatedAt)||Number(d._updatedAt)||0;
               }
             }
@@ -1067,35 +1070,32 @@ function App() {
       const localTs = Number(localMd?._updatedAt)||0;
       const remoteHasData = !!remoteMd && !isEmptyMonthRecord(remoteMd);
       const localHasData = !!localMd && !isEmptyMonthRecord(localMd);
+      const localRecordExists = !!localMd;
 
-      // For an existing month, prefer the newest complete record. A recent user edit
-      // may already be safely in localStorage while the background Cloud POST is still
-      // in flight. Never replace that newer local edit with an older Cloud copy merely
-      // because navigation happened before the network write finished.
-      if(remoteHasData) {
+      // Any existing Cloud record is authoritative for that month, including a
+      // legitimately empty record created by the user after deleting its last item.
+      // Only prefer local when it is newer than Cloud.
+      if(remoteRecordExists) {
         const rData = {...remoteMd,_updatedAt:remoteTs||Number(remoteMd._updatedAt)||Date.now()};
         const localTime = Number(localMd?._updatedAt)||0;
         const remoteTime = Number(rData?._updatedAt)||0;
 
-        if(localHasData && localTime > remoteTime) {
+        if(localRecordExists && localTime > remoteTime) {
           applyMonth(localMd,false);
-          // Keep the pending local edit eligible for its already-queued Cloud save.
           return;
         }
 
         const cloudData = rData;
         try{ sessionStorage.setItem(`raijai_cloud_authoritative_${loadingKey}`,"1"); }catch(e){}
         lsSet(loadingKey,cloudData);
-        // A fresh authoritative Cloud copy supersedes any stale queued write for this
-        // month. New user edits after hydration will enqueue a new save normally.
         syncQueueRef.current.delete(loadingKey);
         if(activeMonthKeyRef.current === loadingKey) applyMonth(cloudData,false);
         return;
       }
 
-      // If Cloud has no usable data for this month, keep a non-empty local copy.
-      // This preserves unsynced work and existing local-only months.
-      if(localHasData && localMd) {
+      // If Cloud has no record for this month, keep an existing local record (even if
+      // it is empty) rather than treating it as a reason to copy another month's data.
+      if(localRecordExists && localMd) {
         applyMonth(localMd,false);
         return;
       }
@@ -1142,12 +1142,9 @@ function App() {
   // บันทึกข้อมูลเดือนปัจจุบัน
   const queueCloudSave = (key, data) => {
     if(!validSyncUrl(syncUrl)) return;
-    // After Cloud has provided a non-empty authoritative month, never allow an empty
-    // callback/state to requeue that month for upload.
-    const isMonthKey = /^raijai_\d{4}-\d{2}$/.test(String(key||""));
-    if(isMonthKey && isEmptyMonthRecord(data)){
-      try{ if(sessionStorage.getItem(`raijai_cloud_authoritative_${key}`)==="1") return; }catch(e){}
-    }
+    // Empty month records are valid user data: deleting the last fixed/daily/saving
+    // item must be allowed to persist an empty record to Cloud. Initialization paths
+    // already call saveMonth(..., false), so they do not enter this queue.
     // เก็บค่าล่าสุดของแต่ละ key ไว้ในคิว: localStorage บันทึกทันที ส่วน cloud ทำงานเบื้องหลัง
     syncQueueRef.current.set(key, data);
     syncPendingRef.current = true;
@@ -1194,6 +1191,8 @@ function App() {
     if(targetKey !== activeMonthKeyRef.current) return false;
     if(!monthDataReady || hydratedMonthKey !== targetKey) return false;
 
+    // An empty fixedExpenses/daily/paid/savingItems structure is still a valid saved
+    // month after the user deletes the last item; do not reinterpret it as "new month".
     // Keep paid flags strictly in sync with the fixed-expense list.
     // This removes stale paid entries when a fixed expense is deleted,
     // and also cleans up any legacy/orphaned IDs already present in storage.
