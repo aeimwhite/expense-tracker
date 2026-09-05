@@ -1120,7 +1120,7 @@ function App() {
     },800);
   };
 
-  const saveMonth = (fixed, daily, paid, savingsList, budgetSnapshots, targetKey=monthKey) => {
+  const saveMonth = (fixed, daily, paid, savingsList, budgetSnapshots, targetKey=monthKey, syncCloud=true) => {
     // Ref check blocks callbacks from a previous month from saving into the newly selected month.
     if(targetKey !== activeMonthKeyRef.current) return false;
     if(!monthDataReady || hydratedMonthKey !== targetKey) return false;
@@ -1133,8 +1133,11 @@ function App() {
       dailyBudgetSnapshotVersion: 3,
       _updatedAt: Date.now(),
     };
-    lsSet(monthKey,data);
-    queueCloudSave(targetKey,data);
+    // Always persist to the exact target month. Never use the current render's monthKey here.
+    lsSet(targetKey,data);
+    // Cloud writes are only allowed for explicit user saves. Initialization/hydration
+    // must never push derived/stale state back to Google Sheets.
+    if(syncCloud) queueCloudSave(targetKey,data);
     setIsNewMonth(false);
     return true;
   };
@@ -1244,7 +1247,9 @@ function App() {
     if(dailyBudgetSnapshotVersion < 3 || changed){
       setDailyBudgetSnapshots(current);
       setDailyBudgetSnapshotVersion(3);
-      saveMonth(null,null,null,null,current);
+      // Snapshot creation is derived initialization data. Save it locally only;
+      // do not let opening/switching months overwrite the authoritative Sheet record.
+      saveMonth(null,null,null,null,current,monthKey,false);
     }
   },[todaySnapshotKey,syncReady,monthDataReady,hydratedMonthKey,monthKey,dailyBudgetSnapshotVersion]);
 
