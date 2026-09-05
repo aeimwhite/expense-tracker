@@ -1068,17 +1068,27 @@ function App() {
       const remoteHasData = !!remoteMd && !isEmptyMonthRecord(remoteMd);
       const localHasData = !!localMd && !isEmptyMonthRecord(localMd);
 
-      // For a selected existing month, Google Sheet is authoritative whenever it has
-      // a real record. This deliberately ignores local timestamps: old/corrupted local
-      // state must never hide the complete Cloud record when entering a month.
+      // For an existing month, prefer the newest complete record. A recent user edit
+      // may already be safely in localStorage while the background Cloud POST is still
+      // in flight. Never replace that newer local edit with an older Cloud copy merely
+      // because navigation happened before the network write finished.
       if(remoteHasData) {
-        const cloudData = {...remoteMd,_updatedAt:remoteTs||Number(remoteMd._updatedAt)||Date.now()};
+        const rData = {...remoteMd,_updatedAt:remoteTs||Number(remoteMd._updatedAt)||Date.now()};
+        const localTime = Number(localMd?._updatedAt)||0;
+        const remoteTime = Number(rData?._updatedAt)||0;
+
+        if(localHasData && localTime > remoteTime) {
+          applyMonth(localMd,false);
+          // Keep the pending local edit eligible for its already-queued Cloud save.
+          return;
+        }
+
+        const cloudData = rData;
         try{ sessionStorage.setItem(`raijai_cloud_authoritative_${loadingKey}`,"1"); }catch(e){}
         lsSet(loadingKey,cloudData);
-        // Cancel any stale queued write for this month that could re-overwrite the
-        // freshly hydrated Cloud record after navigation. New edits will enqueue again.
+        // A fresh authoritative Cloud copy supersedes any stale queued write for this
+        // month. New user edits after hydration will enqueue a new save normally.
         syncQueueRef.current.delete(loadingKey);
-        try{ sessionStorage.setItem(`raijai_cloud_authoritative_${loadingKey}`,"1"); }catch(e){}
         if(activeMonthKeyRef.current === loadingKey) applyMonth(cloudData,false);
         return;
       }
