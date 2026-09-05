@@ -779,6 +779,9 @@ function App() {
   const syncInFlightRef = useRef(false);
   const syncPendingRef = useRef(false);
   const syncQueueRef = useRef(new Map());
+  // Cache the authoritative Cloud records loaded at bootstrap so month hydration
+  // cannot fall back to stale local data or a later inconsistent response.
+  const remoteRecordsRef = useRef({});
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [fCategory, setFCategory] = useState(CATEGORIES[0]);
@@ -885,7 +888,9 @@ function App() {
     try{
       const r=await fetch(endpoint+(endpoint.includes("?")?"&":"?")+"action=load&_="+Date.now(),{redirect:"follow",cache:"no-store"});
       const j=await r.json(); if(!j?.ok) throw new Error(j?.error||"load failed");
-      const remote=j.records||{}; const local=collectLocalRecords(); let changed=false; let pushed=0; let pulled=0;
+      const remote=j.records||{};
+      remoteRecordsRef.current = remote;
+      const local=collectLocalRecords(); let changed=false; let pushed=0; let pulled=0;
       // First cloud bootstrap: when the page is opened with an existing Cloud record,
       // prefer non-empty Cloud data over any stale local copy. Do not push local data
       // during this initial background sync. This prevents an old/corrupted local
@@ -1018,19 +1023,40 @@ function App() {
       let remoteTs = 0;
       let cloudConfigured = false;
       let cloudLoadSucceeded = false;
+
+      // Prefer the exact month from the bootstrap Cloud payload already fetched.
+      // This avoids a stale localStorage month or a second request returning older data.
+      try {
+        const cachedRecords = remoteRecordsRef.current || {};
+        const cachedRr = getRemoteRecord(cachedRecords, loadingKey);
+        if(cachedRr){
+          const d = decodeCloudData(cachedRr.data);
+          if(d && typeof d === "object") {
+            remoteMd = d;
+            remoteTs = Number(cachedRr.updatedAt)||Number(d._updatedAt)||0;
+            cloudConfigured = true;
+            cloudLoadSucceeded = true;
+          }
+        }
+      } catch(e) {}
+
       try {
         const u = String(localStorage.getItem("raijai_sync_url")||syncUrl||"").trim();
-        cloudConfigured = validSyncUrl(u);
-        if(cloudConfigured) {
+        cloudConfigured = cloudConfigured || validSyncUrl(u);
+        // Only fetch when bootstrap did not already provide this exact month.
+        if(validSyncUrl(u) && !remoteMd) {
           const r = await fetch(u+(u.includes("?")?"&":"?")+"action=load&_="+Date.now(),{redirect:"follow",cache:"no-store"});
           const j = await r.json();
           cloudLoadSucceeded = !!j?.ok;
-          const rr = j?.ok ? getRemoteRecord(j.records||{},loadingKey) : null;
-          if(rr){
-            const d = decodeCloudData(rr.data);
-            if(d && typeof d === "object") {
-              remoteMd = d;
-              remoteTs = Number(rr.updatedAt)||Number(d._updatedAt)||0;
+          if(j?.ok){
+            remoteRecordsRef.current = j.records||{};
+            const rr = getRemoteRecord(j.records||{},loadingKey);
+            if(rr){
+              const d = decodeCloudData(rr.data);
+              if(d && typeof d === "object") {
+                remoteMd = d;
+                remoteTs = Number(rr.updatedAt)||Number(d._updatedAt)||0;
+              }
             }
           }
         }
