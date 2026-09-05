@@ -883,11 +883,16 @@ function App() {
         const remoteIsEmptyMonth = isMonthKey && (!remoteData || isEmptyMonthRecord(remoteData));
         const remoteHasData = isMonthKey ? !!remoteData && !isEmptyMonthRecord(remoteData) : !!remoteData;
 
-        if(rr && remoteHasData && isMonthKey && initialCloudBootstrap){
-          // FIRST BOOTSTRAP: an existing non-empty Cloud month is authoritative.
-          // Pull it locally and do not push any local version during this pass.
-          const pulledData = {...remoteData,_updatedAt:rt||Date.now()};
-          lsSet(key,pulledData); changed=true; pulled++;
+        // BOOTSTRAP IS READ-ONLY FOR MONTH DATA.
+        // Never upload any monthly record while opening a fresh browser/GitHub page.
+        // Cloud/Sheet is the source of truth for an existing month; local data is only
+        // used later after the month has been hydrated or when the user explicitly edits it.
+        if(initialCloudBootstrap && isMonthKey){
+          if(rr && remoteHasData){
+            const pulledData = {...remoteData,_updatedAt:rt||Date.now()};
+            lsSet(key,pulledData); changed=true; pulled++;
+          }
+          // Remote empty/missing: DO NOT push local data during bootstrap.
           continue;
         }
 
@@ -900,9 +905,9 @@ function App() {
         }
 
         if(!rr && lv){
-          // Do not upload brand-new EMPTY monthly bootstrap records. This prevents a fresh
-          // GitHub device from creating an empty month and then overwriting cloud data.
-          if(isMonthKey && isEmptyMonthRecord(lv)) continue;
+          // Missing cloud month is not an invitation to upload a stale local month during
+          // background/manual sync. User edits go through queueCloudSave instead.
+          if(isMonthKey) continue;
           if(!lt){ lv={...lv,_updatedAt:Date.now()}; lsSet(key,lv); }
           if(await cloudPost(key,lv,endpoint)) pushed++;
         }else if(rr && !lv){
@@ -916,7 +921,9 @@ function App() {
             }
           }else if(lt>rt){
             // Empty remote must never win against a local non-empty month.
-            if(isMonthKey && remoteIsEmptyMonth && !localIsEmptyMonth) continue;
+            // For month data, explicit edits already queue the save, so sync should
+            // not resurrect stale local data over an empty cloud row.
+            if(isMonthKey) continue;
             if(await cloudPost(key,lv,endpoint)) pushed++;
           }
         }
