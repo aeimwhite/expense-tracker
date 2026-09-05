@@ -1238,16 +1238,19 @@ function App() {
   // Overview — แต่ละเดือนใช้ fixed ของตัวเอง
   const ovStats = Array.from({length:12},(_,i)=>{
     const k=mk(ovYear,i+1);
-    const d=allMonthData[k]||{fixedExpenses:[],daily:{}};
-    const fx=(d.fixedExpenses||[]).reduce((s,e)=>s+e.amount,0);
-    const varExp=Object.values(d.daily||{}).flat().reduce((s,it)=>s+Number(it.amount),0);
+    const d=allMonthData[k]||{fixedExpenses:[],daily:{},savingItems:[]};
+    const fx=(d.fixedExpenses||[]).reduce((s,e)=>s+Number(e.amount||0),0);
+    const varExp=Object.values(d.daily||{}).flat().reduce((s,it)=>s+Number(it.amount||0),0);
+    const savings=(d.savingItems||[]).reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
     const total=fx+varExp;
-    return {month:i+1,fx,varExp,total,savings:income-total,hasData:varExp>0||fx>0};
+    const remaining=income-savings-total;
+    return {month:i+1,fx,varExp,savings,total,remaining,hasData:varExp>0||fx>0||savings>0};
   });
   const activeMonths = ovStats.filter(m=>m.hasData);
   const ovTotalExp = activeMonths.reduce((s,m)=>s+m.total,0);
   const ovTotalInc = activeMonths.length*income;
-  const ovTotalSav = ovTotalInc-ovTotalExp;
+  const ovTotalSav = activeMonths.reduce((s,m)=>s+m.savings,0);
+  const ovTotalRemaining = activeMonths.reduce((s,m)=>s+m.remaining,0);
   // รวมรายจ่ายประจำของทั้งปีจากข้อมูลจริงของแต่ละเดือน
   // ไม่ใช้จำนวนของเดือนปัจจุบันคูณ 12 เพราะรายจ่ายประจำแต่ละเดือนแยกอิสระจากกัน
   const annualFixedTotal = ovStats.reduce((sum,m)=>sum+m.fx,0);
@@ -1540,7 +1543,7 @@ function App() {
                       <td className="num">฿{fmt(ms.fx)}</td>
                       <td className="num">฿{fmt(ms.varExp)}</td>
                       <td className="num">฿{fmt(ms.total)}</td>
-                      <td className={`num${ms.savings<0?" neg":" pos"}`}>{ms.savings>=0?"+":""}฿{fmt(ms.savings)}</td>
+                      <td className={`num${ms.remaining<0?" neg":" pos"}`}>{ms.remaining>=0?"+":""}฿{fmt(ms.remaining)}</td>
                     </tr>
                   ))}
                 </tbody>
