@@ -956,52 +956,92 @@ function App() {
     }
   },[]);
 
-  // โหลดข้อมูลจากเครื่องทันที ไม่ต้องรอ Google Sync รอบแรก
+  // Hydrate the selected month from Cloud first, then fall back to localStorage.
+  // This is important when switching months: localStorage may contain a stale/partial
+  // copy while Google Sheets still has the authoritative full month record.
   useEffect(()=>{
     if(!syncReady) return;
     const loadingKey = monthKey;
-    // รอให้โหลดข้อมูลของเดือนปัจจุบันเข้า state ให้เสร็จก่อน
+    let cancelled = false;
     setMonthDataReady(false);
     setHydratedMonthKey(null);
-    const cfg = lsGet("raijai_config");
-    if(cfg?.income)     setIncome(cfg.income);
-    if(cfg?.savingGoal) setSavingGoal(cfg.savingGoal);
-    if(cfg?.monthlyBudget != null) setMonthlyBudget(cfg.monthlyBudget);
 
-    if(activeMonthKeyRef.current !== loadingKey) return;
-    const md = lsGet(loadingKey);
-    if(md){
-      // เดือนเก่า — โหลดข้อมูลที่มีอยู่
-      setFixed(md.fixedExpenses || DEFAULT_FIXED);
-      setDaily(md.daily || {});
-      setPaid(md.paid   || {});
-      setSavingItems(md.savingItems || []);
-      setDailyBudgetSnapshots(md.dailyBudgetSnapshots || {});
-      setDailyBudgetSnapshotVersion(Number(md.dailyBudgetSnapshotVersion) || 0);
-      setIsNewMonth(false);
-      setHydratedMonthKey(loadingKey);
-    } else if(syncReady && activeMonthKeyRef.current === loadingKey) {
-      // เดือนใหม่ — copy รายจ่ายประจำจากเดือนก่อนเป็น starting point
-      // ทำหลังจาก sync รอบแรกเท่านั้น เพื่อป้องกันการสร้าง local bootstrap
-      // แล้วถูกมองว่าเป็นข้อมูลใหม่และไปทับข้อมูลบน Cloud
+    const applyMonth = (md, isNew=false) => {
+      if(cancelled || activeMonthKeyRef.current !== loadingKey) return;
+      if(md){
+        setFixed(md.fixedExpenses || DEFAULT_FIXED);
+        setDaily(md.daily || {});
+        setPaid(md.paid || {});
+        setSavingItems(md.savingItems || []);
+        setDailyBudgetSnapshots(md.dailyBudgetSnapshots || {});
+        setDailyBudgetSnapshotVersion(Number(md.dailyBudgetSnapshotVersion) || 0);
+        setIsNewMonth(isNew);
+        setHydratedMonthKey(loadingKey);
+        setMonthDataReady(true);
+      }
+    };
+
+    const hydrate = async () => {
+      const cfg = lsGet("raijai_config");
+      if(cfg?.income != null) setIncome(cfg.income);
+      if(cfg?.savingGoal != null) setSavingGoal(cfg.savingGoal);
+      if(cfg?.monthlyBudget != null) setMonthlyBudget(cfg.monthlyBudget);
+
+      const localMd = lsGet(loadingKey);
+      let remoteMd = null;
+      let remoteTs = 0;
+      try {
+        const u = String(syncUrl||"").trim();
+        if(validSyncUrl(u)) {
+          const r = await fetch(u+(u.includes("?")?"&":"?")+"action=load&_="+Date.now(),{redirect:"follow",cache:"no-store"});
+          const j = await r.json();
+          const rr = j?.ok ? (j.records||{})[loadingKey] : null;
+          if(rr){
+            let d = rr.data;
+            if(typeof d === "string") { try { d = JSON.parse(d); } catch(e) { d = null; } }
+            if(d && typeof d === "object") {
+              remoteMd = d;
+              remoteTs = Number(rr.updatedAt)||Number(d._updatedAt)||0;
+            }
+          }
+        }
+      } catch(e) { /* fall back to local */ }
+
+      if(cancelled || activeMonthKeyRef.current !== loadingKey) return;
+
+      const localTs = Number(localMd?._updatedAt)||0;
+      const remoteHasData = !!remoteMd && !isEmptyMonthRecord(remoteMd);
+      const localHasData = !!localMd && !isEmptyMonthRecord(localMd);
+
+      if(remoteHasData && (!localHasData || remoteTs >= localTs)) {
+        const cloudData = {...remoteMd,_updatedAt:remoteTs||Date.now()};
+        lsSet(loadingKey,cloudData);
+        applyMonth(cloudData,false);
+        return;
+      }
+
+      if(localMd) {
+        applyMonth(localMd,false);
+        return;
+      }
+
+      // No local/cloud record: create a truly new month only now, after the Cloud check.
       const prevFixed = getPrevFixed(year, month);
       const copiedFixed = prevFixed.map(e => ({ ...e }));
-
+      const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:3,_updatedAt:Date.now()};
       setFixed(copiedFixed);
       setDaily({});
       setPaid({});
+      setSavingItems([]);
       setDailyBudgetSnapshots({});
       setDailyBudgetSnapshotVersion(3);
       setIsNewMonth(true);
-
-      const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:3,_updatedAt:Date.now()};
-      setSavingItems([]);
-      if(activeMonthKeyRef.current !== loadingKey) return;
       lsSet(loadingKey,fresh);
-      setHydratedMonthKey(loadingKey);
-    }
-    // ให้ effect ที่สร้าง daily-budget snapshot ทำงานหลัง state ของเดือนถูก hydrate แล้วเท่านั้น
-    setMonthDataReady(true);
+      applyMonth(fresh,true);
+    };
+
+    hydrate();
+    return ()=>{ cancelled=true; };
   },[monthKey,syncReady]);
 
   useEffect(()=>{
