@@ -767,7 +767,7 @@ function App() {
   const [syncUrl, setSyncUrl] = useState(()=>localStorage.getItem("raijai_sync_url")||"");
   const [syncStatus, setSyncStatus] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
-  const [syncReady, setSyncReady] = useState(true);
+  const [syncReady, setSyncReady] = useState(() => !validSyncUrl(localStorage.getItem("raijai_sync_url")||""));
   const syncTimerRef = useRef(null);
   const syncInFlightRef = useRef(false);
   const syncPendingRef = useRef(false);
@@ -841,7 +841,7 @@ function App() {
 
   const syncNow = async (url=syncUrl, quiet=false) => {
     const endpoint=String(url||"").trim();
-    if(!validSyncUrl(endpoint)){ if(!quiet) setSyncStatus("❌ URL Apps Script ไม่ถูกต้อง"); return; }
+    if(!validSyncUrl(endpoint)){ if(!quiet) setSyncStatus("❌ URL Apps Script ไม่ถูกต้อง"); return false; }
     // Sync เป็นงานเบื้องหลัง: UI และ localStorage ไม่ต้องรอเครือข่าย
     setSyncBusy(true); if(!quiet) setSyncStatus("กำลังซิงก์…");
     try{
@@ -882,7 +882,8 @@ function App() {
         if(mdNow){ setFixed(mdNow.fixedExpenses||DEFAULT_FIXED); setDaily(mdNow.daily||{}); setPaid(mdNow.paid||{}); setSavingItems(mdNow.savingItems||[]); setDailyBudgetSnapshots(mdNow.dailyBudgetSnapshots||{}); setDailyBudgetSnapshotVersion(Number(mdNow.dailyBudgetSnapshotVersion)||0); }
       }
       setSyncStatus(`✅ ซิงก์สำเร็จ${pulled?` • ดึง ${pulled}`:""}${pushed?` • อัป ${pushed}`:""}`);
-    }catch(err){ console.warn(err); if(!quiet) setSyncStatus("❌ ซิงก์ไม่สำเร็จ ตรวจ URL / สิทธิ์ Web App / อินเทอร์เน็ต"); }
+      return true;
+    }catch(err){ console.warn(err); if(!quiet) setSyncStatus("❌ ซิงก์ไม่สำเร็จ ตรวจ URL / สิทธิ์ Web App / อินเทอร์เน็ต"); return false; }
     finally{ setSyncBusy(false); }
   };
 
@@ -895,7 +896,16 @@ function App() {
   // เปิดเว็บให้แสดงข้อมูลจาก localStorage ทันที แล้วค่อยดึง Google Sheets เบื้องหลัง
   useEffect(()=>{
     const u=localStorage.getItem("raijai_sync_url")||"";
-    if(validSyncUrl(u)) setTimeout(()=>syncNow(u,true),50);
+    if(validSyncUrl(u)) {
+      // เมื่อเปิดเว็บและมี Cloud Sync: ห้ามสร้าง/เขียน local เดือนก่อน sync สำเร็จ
+      setSyncReady(false);
+      setTimeout(async()=>{
+        try { await syncNow(u,true); }
+        finally { setSyncReady(true); }
+      },50);
+    } else {
+      setSyncReady(true);
+    }
   },[]);
 
   // โหลดข้อมูลจากเครื่องทันที ไม่ต้องรอ Google Sync รอบแรก
@@ -916,9 +926,10 @@ function App() {
       setDailyBudgetSnapshots(md.dailyBudgetSnapshots || {});
       setDailyBudgetSnapshotVersion(Number(md.dailyBudgetSnapshotVersion) || 0);
       setIsNewMonth(false);
-    } else {
+    } else if(syncReady) {
       // เดือนใหม่ — copy รายจ่ายประจำจากเดือนก่อนเป็น starting point
-      // แล้วบันทึกเป็นข้อมูลของเดือนนี้ทันที เพื่อให้แต่ละเดือนแยกอิสระจากกัน
+      // ทำหลังจาก sync รอบแรกเท่านั้น เพื่อป้องกันการสร้าง local bootstrap
+      // แล้วถูกมองว่าเป็นข้อมูลใหม่และไปทับข้อมูลบน Cloud
       const prevFixed = getPrevFixed(year, month);
       const copiedFixed = prevFixed.map(e => ({ ...e }));
 
@@ -929,8 +940,6 @@ function App() {
       setDailyBudgetSnapshotVersion(3);
       setIsNewMonth(true);
 
-      // สร้างข้อมูลเริ่มต้นในเครื่องก่อน แต่ห้ามส่งขึ้น cloud ทันที
-      // เพื่อไม่ให้ข้อมูล cloud ของเดือนนั้นถูกข้อมูลว่างเขียนทับก่อน sync รอบแรก
       const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:3,_updatedAt:Date.now()};
       setSavingItems([]);
       lsSet(monthKey,fresh);
