@@ -753,6 +753,8 @@ function App() {
   const [dailyEntries,  setDaily]   = useState({});
   const [paidFixed,     setPaid]    = useState({});
   const [isNewMonth,    setIsNewMonth] = useState(false);
+  // ป้องกัน effect งบวันนี้ทำงานก่อนข้อมูลเดือนจาก Cloud/local ถูกโหลดเสร็จ
+  const [monthDataReady, setMonthDataReady] = useState(false);
   const [modal,    setModal]    = useState(null);
   const [expDay,   setExpDay]   = useState(null);
   const [fDay,  setFDay]  = useState(String(now.getDate()));
@@ -852,27 +854,50 @@ function App() {
       const j=await r.json(); if(!j?.ok) throw new Error(j?.error||"load failed");
       const remote=j.records||{}; const local=collectLocalRecords(); let changed=false; let pushed=0; let pulled=0;
       const keys=new Set([...Object.keys(local),...Object.keys(remote)]);
+      const parseRemoteData = (rr) => {
+        if(!rr) return null;
+        let d = rr.data;
+        if(typeof d === "string"){
+          try{ d = JSON.parse(d); }catch(e){ return null; }
+        }
+        return (d && typeof d === "object") ? d : null;
+      };
       for(const key of keys){
         let lv=local[key]; const rr=remote[key];
-        let lt=Number(lv?._updatedAt)||0; const rt=Number(rr?.updatedAt)||Number(rr?.data?._updatedAt)||0;
+        const remoteData = parseRemoteData(rr);
+        const lt=Number(lv?._updatedAt)||0;
+        const rt=Number(rr?.updatedAt)||Number(remoteData?._updatedAt)||0;
+        const isMonthKey = key.startsWith("raijai_") && /^raijai_\d{4}-\d{2}$/.test(key);
+        const localIsEmptyMonth = isMonthKey && isEmptyMonthRecord(lv);
+        const remoteIsEmptyMonth = isMonthKey && (!remoteData || isEmptyMonthRecord(remoteData));
+        const remoteHasData = isMonthKey ? !!remoteData && !isEmptyMonthRecord(remoteData) : !!remoteData;
+
+        if(rr && lv && isMonthKey && localIsEmptyMonth && remoteHasData){
+          // ABSOLUTE PROTECTION: non-empty cloud month always wins over empty local month,
+          // regardless of timestamps. Never push the empty local record in this case.
+          const pulledData = {...remoteData,_updatedAt:rt||Date.now()};
+          lsSet(key,pulledData); changed=true; pulled++;
+          continue;
+        }
+
         if(!rr && lv){
-          if(!lt){ lv={...lv,_updatedAt:Date.now()}; lsSet(key,lv); lt=lv._updatedAt; }
+          // Do not upload brand-new EMPTY monthly bootstrap records. This prevents a fresh
+          // GitHub device from creating an empty month and then overwriting cloud data.
+          if(isMonthKey && isEmptyMonthRecord(lv)) continue;
+          if(!lt){ lv={...lv,_updatedAt:Date.now()}; lsSet(key,lv); }
           if(await cloudPost(key,lv,endpoint)) pushed++;
         }else if(rr && !lv){
-          // มีข้อมูลบน cloud แต่เครื่องยังไม่มีข้อมูล: ดึง cloud ลงเครื่อง
-          lsSet(key,{...(rr.data||{}),_updatedAt:rt||Date.now()}); changed=true; pulled++;
-        }else if(rr && lv){
-          const remoteData = rr.data || {};
-          // Safety: ถ้า local ของเดือนเป็นข้อมูลว่าง แต่ cloud มีข้อมูลจริง
-          // ห้ามใช้ timestamp ของ local ที่ใหม่กว่ามาทับ cloud เด็ดขาด ให้ดึง cloud กลับแทน
-          const isMonthKey = key.startsWith("raijai_") && /^raijai_\d{4}-\d{2}$/.test(key);
-          const remoteHasData = !isEmptyMonthRecord(remoteData);
-          const localIsEmptyMonth = isMonthKey && isEmptyMonthRecord(lv);
-          if(isMonthKey && localIsEmptyMonth && remoteHasData){
+          if(remoteData){
             lsSet(key,{...remoteData,_updatedAt:rt||Date.now()}); changed=true; pulled++;
-          }else if(rt>lt || (rt>0 && lt===0)){
-            lsSet(key,{...remoteData,_updatedAt:rt}); changed=true; pulled++;
+          }
+        }else if(rr && lv){
+          if(rt>lt || (rt>0 && lt===0)){
+            if(remoteData){
+              lsSet(key,{...remoteData,_updatedAt:rt}); changed=true; pulled++;
+            }
           }else if(lt>rt){
+            // Empty remote must never win against a local non-empty month.
+            if(isMonthKey && remoteIsEmptyMonth && !localIsEmptyMonth) continue;
             if(await cloudPost(key,lv,endpoint)) pushed++;
           }
         }
@@ -914,6 +939,8 @@ function App() {
   // โหลดข้อมูลจากเครื่องทันที ไม่ต้องรอ Google Sync รอบแรก
   useEffect(()=>{
     if(!syncReady) return;
+    // รอให้โหลดข้อมูลของเดือนปัจจุบันเข้า state ให้เสร็จก่อน
+    setMonthDataReady(false);
     const cfg = lsGet("raijai_config");
     if(cfg?.income)     setIncome(cfg.income);
     if(cfg?.savingGoal) setSavingGoal(cfg.savingGoal);
@@ -947,6 +974,8 @@ function App() {
       setSavingItems([]);
       lsSet(monthKey,fresh);
     }
+    // ให้ effect ที่สร้าง daily-budget snapshot ทำงานหลัง state ของเดือนถูก hydrate แล้วเท่านั้น
+    setMonthDataReady(true);
   },[monthKey,syncReady]);
 
   useEffect(()=>{
@@ -1093,11 +1122,13 @@ function App() {
     : NaN;
   // งบต่อวันคำนวณแบบ rolling จากเงินที่เหลือจริง และไม่รวมรายจ่ายล่วงหน้า
   // จึงปรับทันทีเมื่อมีการเพิ่ม/แก้/ลบรายจ่ายที่เกิดขึ้นแล้วถึงวันนี้
-  const todayAllowance = daysLeft > 0 ? Math.max(0, remainingForDaily) / daysLeft : 0;
-  const todayRemaining = todayAllowance;
+  const todayAllowance = Number.isFinite(savedTodayAllowance) && savedTodayAllowance >= 0
+    ? savedTodayAllowance
+    : (daysLeft > 0 ? Math.max(0, remainingForDaily) / daysLeft : 0);
+  const todayRemaining = Math.max(0, todayAllowance - todaySpent);
 
   useEffect(()=>{
-    if(!todaySnapshotKey || !syncReady) return;
+    if(!todaySnapshotKey || !syncReady || !monthDataReady) return;
 
     // เวอร์ชันเก่าบางไฟล์เคยคำนวณงบวันนี้ผิด (เอารายจ่ายวันนี้มาบวกกลับ)
     // ถ้ายังไม่มี snapshot version 2 ให้ล้างเฉพาะ snapshot ของวันนี้แล้วสร้างใหม่
@@ -1123,7 +1154,7 @@ function App() {
       setDailyBudgetSnapshotVersion(3);
       saveMonth(null,null,null,null,current);
     }
-  },[todaySnapshotKey,syncReady,dailyBudgetSnapshotVersion]);
+  },[todaySnapshotKey,syncReady,monthDataReady,dailyBudgetSnapshotVersion]);
 
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
