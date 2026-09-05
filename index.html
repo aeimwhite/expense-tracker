@@ -767,7 +767,10 @@ function App() {
   const [syncUrl, setSyncUrl] = useState(()=>localStorage.getItem("raijai_sync_url")||"");
   const [syncStatus, setSyncStatus] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
-  const [syncReady, setSyncReady] = useState(() => !validSyncUrl(localStorage.getItem("raijai_sync_url")||""));
+  const [syncReady, setSyncReady] = useState(() => {
+    const u = localStorage.getItem("raijai_sync_url") || "";
+    return !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(String(u).trim());
+  });
   const syncTimerRef = useRef(null);
   const syncInFlightRef = useRef(false);
   const syncPendingRef = useRef(false);
