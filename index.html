@@ -1193,10 +1193,21 @@ function App() {
     // Ref check blocks callbacks from a previous month from saving into the newly selected month.
     if(targetKey !== activeMonthKeyRef.current) return false;
     if(!monthDataReady || hydratedMonthKey !== targetKey) return false;
+
+    // Keep paid flags strictly in sync with the fixed-expense list.
+    // This removes stale paid entries when a fixed expense is deleted,
+    // and also cleans up any legacy/orphaned IDs already present in storage.
+    const fixedList = fixed ?? fixedExpenses;
+    const paidSource = paid ?? paidFixed;
+    const fixedIds = new Set((fixedList || []).map(e => e.id));
+    const paidClean = Object.fromEntries(
+      Object.entries(paidSource || {}).filter(([id]) => fixedIds.has(id))
+    );
+
     const data={
-      fixedExpenses: fixed ?? fixedExpenses,
+      fixedExpenses: fixedList,
       daily: daily ?? dailyEntries,
-      paid:  paid  ?? paidFixed,
+      paid:  paidClean,
       savingItems: savingsList ?? savingItems,
       dailyBudgetSnapshots: budgetSnapshots ?? dailyBudgetSnapshots,
       dailyBudgetSnapshotVersion: 3,
