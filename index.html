@@ -1790,16 +1790,6 @@ function App() {
   const currentMonthItems = Object.values(dailyEntries).flat();
   const matchesFilter = it=>{ const q=searchTerm.trim().toLowerCase(); return (!q || String(it.name||"").toLowerCase().includes(q) || String(it.note||"").toLowerCase().includes(q)) && (!filterCategory || (it.category||"📦 อื่น ๆ")===filterCategory); };
   const filteredItems = currentMonthItems.filter(matchesFilter);
-  const compareMonth = activeMonths.length ? activeMonths[activeMonths.length-1].month : month;
-  const compareYear = ovYear;
-  const prevM = compareMonth===1?12:compareMonth-1, prevY=compareMonth===1?compareYear-1:compareYear;
-  const compareData = allMonthData[mk(compareYear,compareMonth)]||{fixedExpenses:[],daily:{},paid:{}};
-  const compareTotal = sumPaidFixed(compareData)+Object.values(compareData.daily||{}).flat().reduce((a,e)=>a+Number(e.amount||0),0);
-  const prevData = lsGet(mk(prevY,prevM))||allMonthData[mk(prevY,prevM)]||{fixedExpenses:[],daily:{},paid:{}};
-  const prevTotal = sumPaidFixed(prevData)+Object.values(prevData.daily||{}).flat().reduce((a,e)=>a+Number(e.amount||0),0);
-  const monthDiff = compareTotal-prevTotal;
-  const monthDiffPct = prevTotal>0 ? (monthDiff/prevTotal)*100 : null;
-
   return (<>
     <div className="app">
       {!monthDataReady && tab==="month" && <div role="status" className="notice">กำลังโหลดข้อมูลเดือนนี้… หากโหลดไม่สำเร็จให้กดซิงก์แล้วเปิดเดือนนี้ใหม่</div>}
@@ -2057,13 +2047,6 @@ function App() {
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-
-        <div className="section" style={{marginTop:16}}>
-          <div className="section-header"><span className="section-title">📈 เดือนล่าสุดที่มีข้อมูลเทียบเดือนก่อน</span></div>
-          <div className="list-box" style={{padding:"14px"}}>
-            {monthDiffPct===null ? <div style={{fontSize:13,color:"#6B7280"}}>ยังไม่มีข้อมูลเดือนก่อนสำหรับเปรียบเทียบ</div> : <div style={{fontSize:14,color:monthDiff>0?"#B91C1C":"#047857",fontWeight:700}}>{monthDiff>0?"🔴":"🟢"} {monthDiff>0?"ใช้มากขึ้น":"ใช้ลดลง"} ฿{fmt(Math.abs(monthDiff))} ({Math.abs(monthDiffPct).toFixed(1)}%) <span style={{fontWeight:400,color:"#6B7280"}}>เทียบกับ {MONTH_FULL[prevM-1]} {prevY}</span></div>}
           </div>
         </div>
 
