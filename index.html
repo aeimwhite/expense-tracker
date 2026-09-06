@@ -1689,7 +1689,12 @@ function App() {
     }else return false;
     setLastDeleted(null);return true;
   };
-  const togglePaid = id=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...paidFixed,[id]:!paidFixed[id]}; setPaid(upd); saveMonth(null,null,upd); };
+  const togglePaid = id=>{
+    if(!canEditMonth() || !fixedExpenses.some(e=>e.id===id)) return false;
+    const upd={...paidFixed,[id]:!paidFixed[id]};
+    if(!saveMonth(null,null,upd)) return false;
+    setPaid(upd);return true;
+  };
   const saveIncome = v=>{
     if(amountError(v,false)) return false;
     const n=Number(v);
@@ -1707,9 +1712,12 @@ function App() {
     if(!lsSet("raijai_config",data))return false;
     queueCloudSave("raijai_config",data);setMonthlyBudget(n);return true;
   };
-  const saveSavingName = (id,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
-    const items=savingItems.map(x=>x.id===id?{...x,name:String(v).trim()||x.name}:x);
-    setSavingItems(items); saveMonth(null,null,null,items);
+  const saveSavingName = (id,v)=>{
+    const name=String(v).trim();
+    if(!canEditMonth() || !name || !savingItems.some(x=>x.id===id)) return false;
+    const items=savingItems.map(x=>x.id===id?{...x,name}:x);
+    if(!saveMonth(null,null,null,items)) return false;
+    setSavingItems(items);return true;
   };
   const saveSavingAmt = (id,v)=>{
     if(!canEditMonth() || amountError(v) || !savingItems.some(x=>x.id===id))return false;
@@ -1717,9 +1725,11 @@ function App() {
     if(!saveMonth(null,null,null,items))return false;
     setSavingItems(items);return true;
   };
-  const addSavingItem = ()=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
+  const addSavingItem = ()=>{
+    if(!canEditMonth()) return false;
     const items=[...savingItems,{id:mkid(),name:"ออมใหม่",amount:0}];
-    setSavingItems(items); saveMonth(null,null,null,items);
+    if(!saveMonth(null,null,null,items)) return false;
+    setSavingItems(items);return true;
   };
   const delSavingItem = id=>{
     if(!canEditMonth()) return false;
@@ -1736,10 +1746,32 @@ function App() {
     if(!saveMonth(nf,null,null))return false;
     setFixed(nf);return true;
   };
-  const saveFixedName = (id,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const nf=fixedExpenses.map(e=>e.id===id?{...e,name:v}:e); setFixed(nf); saveMonth(nf,null,null); };
-  const saveFixedCategory = (id,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const nf=fixedExpenses.map(e=>e.id===id?{...e,category:v}:e); setFixed(nf); saveMonth(nf,null,null); };
-  const saveDailyName = (day,idx,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,name:v}:it)}; setDaily(upd); saveMonth(null,upd,null); };
-  const saveDailyCategory = (day,idx,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,category:v}:it)}; setDaily(upd); saveMonth(null,upd,null); };
+  const saveFixedName = (id,v)=>{
+    const name=String(v).trim();
+    if(!canEditMonth() || !name || !fixedExpenses.some(e=>e.id===id)) return false;
+    const nf=fixedExpenses.map(e=>e.id===id?{...e,name}:e);
+    if(!saveMonth(nf,null,null)) return false;
+    setFixed(nf);return true;
+  };
+  const saveFixedCategory = (id,v)=>{
+    if(!canEditMonth() || !CATEGORIES.includes(v) || !fixedExpenses.some(e=>e.id===id)) return false;
+    const nf=fixedExpenses.map(e=>e.id===id?{...e,category:v}:e);
+    if(!saveMonth(nf,null,null)) return false;
+    setFixed(nf);return true;
+  };
+  const saveDailyName = (day,idx,v)=>{
+    const name=String(v).trim();
+    if(!canEditMonth() || !name || !dailyEntries[day]?.[idx]) return false;
+    const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,name}:it)};
+    if(!saveMonth(null,upd,null)) return false;
+    setDaily(upd);return true;
+  };
+  const saveDailyCategory = (day,idx,v)=>{
+    if(!canEditMonth() || !CATEGORIES.includes(v) || !dailyEntries[day]?.[idx]) return false;
+    const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,category:v}:it)};
+    if(!saveMonth(null,upd,null)) return false;
+    setDaily(upd);return true;
+  };
   const saveDailyAmt = (day,idx,v)=>{
     if(!canEditMonth() || amountError(v) || !dailyEntries[day]?.[idx])return false;
     const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,amount:Number(v)}:it)};
