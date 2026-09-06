@@ -502,6 +502,13 @@ const MONTH_FULL  = ["มกราคม","กุมภาพันธ์","ม�
 const fmt  = n => Number(n||0).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtK = n => { const v=Number(n||0); return v>=1000?(v/1000).toFixed(1)+"K":v.toFixed(0); };
 const daysInMonth = (y,m) => new Date(y,m,0).getDate();
+const isValidDay = (day, count) => {
+  const n=Number(day);
+  return Number.isInteger(n) && n>=1 && n<=count && String(n)===String(day);
+};
+const dailyDayKeys = (entries,count) => Object.keys(entries)
+  .filter(day=>Array.isArray(entries[day]) && entries[day].length)
+  .sort((a,b)=>Number(isValidDay(a,count))-Number(isValidDay(b,count)) || Number(a)-Number(b) || a.localeCompare(b));
 const mkid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
 
 function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch{ return null; } }
@@ -1082,6 +1089,7 @@ function App() {
   // Any save handler created for an older month becomes invalid immediately when monthKey changes.
   const activeMonthKeyRef = useRef(monthKey);
   activeMonthKeyRef.current = monthKey;
+  useEffect(()=>{setLastDeleted(null);setExpDay(null);},[monthKey]);
 
   const validSyncUrl = url => /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(String(url||"").trim());
   const fetchCloud = async (url,options={}) => {
@@ -1482,7 +1490,9 @@ function App() {
         .flatMap(([,items]) => items)
         .reduce((s,i) => s + Number(i.amount||0), 0)
     : totalVar;
-  const futureVar = totalVar - pastAndTodayVar;
+  const futureVar = _isCurrentMonthForVar ? Object.entries(dailyEntries)
+    .filter(([d])=>isValidDay(d,daysInMonth(year,month)) && Number(d)>_todayNum)
+    .flatMap(([,items])=>items).reduce((sum,it)=>sum+Number(it.amount||0),0) : 0;
   const totalSavings = savingItems.reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
   // งบรายจ่ายคำนวณอัตโนมัติ: รายรับ - เงินออม - รายจ่ายประจำ
   const spendableBudget = Math.max(0, income - totalSavings - totalFixed);
@@ -1519,12 +1529,11 @@ function App() {
   const savedTodayAllowance = todaySnapshotKey
     ? Number(dailyBudgetSnapshots[todaySnapshotKey])
     : NaN;
-  // งบต่อวันคำนวณแบบ rolling จากเงินที่เหลือจริง และไม่รวมรายจ่ายล่วงหน้า
-  // จึงปรับทันทีเมื่อมีการเพิ่ม/แก้/ลบรายจ่ายที่เกิดขึ้นแล้วถึงวันนี้
+  // Keep the saved daily allowance fixed; the remaining-today display subtracts today's spending.
   const todayAllowance = Number.isFinite(savedTodayAllowance) && savedTodayAllowance >= 0
     ? savedTodayAllowance
     : (daysLeft > 0 ? Math.max(0, remainingForDaily) / daysLeft : 0);
-  const todayRemaining = Math.max(0, todayAllowance - todaySpent);
+  const todayRemaining = todayAllowance - todaySpent;
 
   useEffect(()=>{
     if(!todaySnapshotKey || !syncReady || !monthDataReady || hydratedMonthKey !== monthKey || activeMonthKeyRef.current !== monthKey) return;
@@ -1588,25 +1597,64 @@ function App() {
     const nf=[...fixedExpenses,{id:mkid(),name:fxName.trim(),amount:Number(fxAmt)}];
     setFixed(nf); saveMonth(nf,null,null); setFxName(""); setFxAmt("");
   };
-  const delDaily = (day,idx)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
+  const canEditMonth = () => monthDataReady && hydratedMonthKey===monthKey && activeMonthKeyRef.current===monthKey;
+  const moveDaily = (day,idx,newDay) => {
+    if(!canEditMonth() || !isValidDay(newDay,days) || String(newDay)===String(day)) return false;
+    const item=dailyEntries[day]?.[idx];
+    if(!item) return false;
+    const target=String(newDay);
+    const upd={...dailyEntries,[day]:dailyEntries[day].filter((_,i)=>i!==idx),[target]:[...(dailyEntries[target]||[]),item]};
+    if(!upd[day].length) delete upd[day];
+    if(!saveMonth(null,upd,null)) return false;
+    setDaily(upd);setExpDay(target);setLastDeleted(null);
+    return true;
+  };
+  const delDaily = (day,idx)=>{
+    if(!canEditMonth()) return false;
     const removed=dailyEntries[day]?.[idx];
+    if(!removed) return false;
     const upd={...dailyEntries,[day]:dailyEntries[day].filter((_,i)=>i!==idx)};
     if(!upd[day].length) delete upd[day];
-    setLastDeleted({type:"daily",day,idx,item:removed});
-    setDaily(upd); saveMonth(null,upd,null);
+    if(!saveMonth(null,upd,null)) return false;
+    setLastDeleted({type:"daily",monthKey,day,idx,item:removed});setDaily(upd);
+    return true;
   };
-  const duplicateDaily = (day,idx)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
-    const src=dailyEntries[day]?.[idx]; if(!src) return;
+  const duplicateDaily = (day,idx)=>{
+    if(!canEditMonth() || !isValidDay(day,days)) return false;
+    const src=dailyEntries[day]?.[idx]; if(!src) return false;
     const copy={...src,id:mkid()};
     const upd={...dailyEntries,[day]:[...(dailyEntries[day]||[]),copy]};
-    setDaily(upd); saveMonth(null,upd,null); setExpDay(day);
+    if(!saveMonth(null,upd,null)) return false;
+    setDaily(upd);setExpDay(day);return true;
   };
-  const delFixed   = id=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const removed=fixedExpenses.find(e=>e.id===id); const nf=fixedExpenses.filter(e=>e.id!==id); setLastDeleted({type:"fixed",item:removed}); setFixed(nf); saveMonth(nf,null,null); };
-  const undoDelete = ()=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
-    if(!lastDeleted) return;
-    if(lastDeleted.type==="daily"){ const {day,idx,item}=lastDeleted; const arr=[...(dailyEntries[day]||[])]; arr.splice(Math.min(idx,arr.length),0,item); const upd={...dailyEntries,[day]:arr}; setDaily(upd); saveMonth(null,upd,null); }
-    else if(lastDeleted.type==="fixed" && lastDeleted.item){ const nf=[...fixedExpenses,lastDeleted.item]; setFixed(nf); saveMonth(nf,null,null); }
-    setLastDeleted(null);
+  const delFixed = id=>{
+    if(!canEditMonth()) return false;
+    const idx=fixedExpenses.findIndex(e=>e.id===id), removed=fixedExpenses[idx];
+    if(!removed) return false;
+    const nf=fixedExpenses.filter(e=>e.id!==id),paid={...paidFixed};delete paid[id];
+    if(!saveMonth(nf,null,paid)) return false;
+    setLastDeleted({type:"fixed",monthKey,idx,item:removed,paid:!!paidFixed[id]});setFixed(nf);setPaid(paid);return true;
+  };
+  const undoDelete = ()=>{
+    if(!canEditMonth() || !lastDeleted || lastDeleted.monthKey!==monthKey) return false;
+    const {item}=lastDeleted;
+    if(!item) return false;
+    if(lastDeleted.type==="daily"){
+      // A sync may already have restored the same item. Never add it twice.
+      if(item.id && Object.values(dailyEntries).some(list=>list.some(x=>x.id===item.id))){setLastDeleted(null);return false;}
+      const {day,idx}=lastDeleted,arr=[...(dailyEntries[day]||[])];
+      arr.splice(Math.min(idx,arr.length),0,item);
+      const upd={...dailyEntries,[day]:arr};
+      if(!saveMonth(null,upd,null)) return false;
+      setDaily(upd);setExpDay(day);
+    }else if(lastDeleted.type==="fixed"){
+      if(fixedExpenses.some(x=>x.id===item.id)){setLastDeleted(null);return false;}
+      const nf=[...fixedExpenses];nf.splice(Math.min(lastDeleted.idx,nf.length),0,item);
+      const paid={...paidFixed,[item.id]:lastDeleted.paid};
+      if(!saveMonth(nf,null,paid)) return false;
+      setFixed(nf);setPaid(paid);
+    }else return false;
+    setLastDeleted(null);return true;
   };
   const togglePaid = id=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...paidFixed,[id]:!paidFixed[id]}; setPaid(upd); saveMonth(null,null,upd); };
   const saveIncome    = v=>{ const n=Number(v); if(!isNaN(n)&&n>0){setIncome(n);saveConfig(n,null);} };
@@ -1639,6 +1687,9 @@ function App() {
   const saveDailyAmt  = (day,idx,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,amount:Number(v)}:it)}; setDaily(upd); saveMonth(null,upd,null); };
 
   const days = daysInMonth(year,month);
+  const listedDays = dailyDayKeys(dailyEntries,days);
+  const invalidDays = listedDays.filter(day=>!isValidDay(day,days));
+  const invalidDayTotal = invalidDays.flatMap(day=>dailyEntries[day]).reduce((sum,it)=>sum+Number(it.amount||0),0);
   const todayDay = now.getMonth()+1===month&&now.getFullYear()===year?now.getDate():null;
 
   // Overview — ใช้นิยาม "รายจ่ายประจำที่จ่ายแล้ว" ให้ตรงกับหน้ารายเดือน
@@ -1766,21 +1817,23 @@ function App() {
               </div>
             </div>
             <div style={{marginTop:12,padding:"12px 14px",borderRadius:14,background:"rgba(255,255,255,.10)",border:"1px solid rgba(255,255,255,.10)"}}>
-              <div style={{fontSize:11,color:"#D1FAE5",fontWeight:700}}>📅 งบใช้ได้ต่อวัน</div>
+              <div style={{fontSize:11,color:"#D1FAE5",fontWeight:700}}>{isCurrentMonth?"📅 งบวันนี้ (คงที่)":"📅 งบเฉลี่ยต่อวัน"}</div>
 
               <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:2}}>
                 <span style={{fontSize:25,fontWeight:800,color:todayRemaining<0?"#FCA5A5":"#fff"}}>฿{fmt(todayAllowance)}</span>
                 <span style={{fontSize:10,color:"#D1FAE5"}}>/ วัน</span>
               </div>
-              <div style={{fontSize:10,color:"#D1FAE5",marginTop:2}}>฿{fmt(Math.max(0,remainingForDaily))} ÷ {daysLeft} วัน{isCurrentMonth?"ที่เหลือ (รวมวันนี้)":"ในเดือนนี้"}</div>
+              <div style={{fontSize:10,color:"#D1FAE5",marginTop:2}}>{isCurrentMonth
+                ? "คงงบที่ตั้งไว้เมื่อเปิดวันนี้ รายจ่ายวันนี้จะหักจากยอดเหลือด้านล่าง"
+                : `฿${fmt(Math.max(0,remainingForDaily))} ÷ ${daysLeft} วันในเดือนนี้`}</div>
               {futureVar > 0 && (
                 <div style={{marginTop:5,padding:"4px 8px",borderRadius:8,background:"rgba(255,255,255,.12)",fontSize:10,color:"#FDE68A"}}>
                   📋 จองล่วงหน้า ฿{fmt(futureVar)} · จะหักอัตโนมัติเมื่อถึงวัน
                 </div>
               )}
-              <div style={{marginTop:7,fontSize:12,color:todayRemaining>=0?"#D1FAE5":"#FCA5A5"}}>
+              {isCurrentMonth && <div style={{marginTop:7,fontSize:12,color:todayRemaining>=0?"#D1FAE5":"#FCA5A5"}}>
                 วันนี้ใช้ไป ฿{fmt(todaySpent)} · <strong>{todayRemaining>=0?`เหลือใช้วันนี้ ฿${fmt(todayRemaining)}`:`เกินงบวันนี้ ฿${fmt(Math.abs(todayRemaining))}`}</strong>
-              </div>
+              </div>}
             </div>
           </div>
 
@@ -1863,31 +1916,37 @@ function App() {
             <input className="form-input" style={{flex:"1 1 180px",padding:"8px 10px"}} value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="🔎 ค้นหารายการ / หมายเหตุ"/>
             <select className="form-input" style={{flex:"0 1 180px",padding:"8px 10px"}} value={filterCategory} onChange={e=>setFilterCategory(e.target.value)}><option value="">ทุกหมวดหมู่</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
           </div>
-          {lastDeleted&&<div className="notice" style={{justifyContent:"space-between"}}><span>ลบรายการแล้ว</span><button className="sm-btn" onClick={undoDelete}>↩️ ยกเลิกการลบ</button></div>}
+          {invalidDays.length>0 && <div className="notice" role="status">⚠️ พบรายการวันที่ไม่ถูกต้อง ฿{fmt(invalidDayTotal)} — ยังรวมอยู่ในยอดรายจ่าย เลือกวันที่ที่ถูกต้องหรือลบรายการด้านล่าง รายการเหล่านี้แสดงแม้กำลังกรองข้อมูล</div>}
+          {lastDeleted?.monthKey===monthKey&&<div className="notice" style={{justifyContent:"space-between"}}><span>ลบรายการแล้ว</span><button className="sm-btn" onClick={undoDelete}>↩️ ยกเลิกการลบ</button></div>}
           <div className="list-box">
-            {Array.from({length:days},(_,i)=>i+1).filter(d=>(dailyEntries[String(d)]||[]).some(matchesFilter)).map(d=>{
+            {listedDays.filter(d=>!isValidDay(d,days) || (dailyEntries[d]||[]).some(matchesFilter)).map(d=>{
               const items=dailyEntries[String(d)]||[];
               const dt=items.reduce((s,i)=>s+Number(i.amount),0);
-              const isOpen=expDay===String(d);
+              const invalidDay=!isValidDay(d,days);
+              const isOpen=invalidDay || expDay===String(d);
               return (
                 <div className="day-row" key={d}>
                   <div className="day-header" onClick={()=>setExpDay(isOpen?null:String(d))}>
-                    <div className={`day-num${d===todayDay?" today-n":""}`}>{d}</div>
-                    <span className="day-lbl">{MONTH_SHORT[month-1]} · {items.length} รายการ</span>
+                    <div className={`day-num${Number(d)===todayDay?" today-n":""}`}>{d}</div>
+                    <span className="day-lbl">{invalidDay?"⚠️ วันที่ไม่ถูกต้อง":MONTH_SHORT[month-1]} · {items.length} รายการ</span>
                     <span className="day-ttl">฿{fmt(dt)}</span>
                     <span className={`chevron${isOpen?" open":""}`}>▶</span>
                   </div>
                   {isOpen&&(
                     <div className="day-items-wrap">
-                      {items.map((it,idx)=>({it,idx})).filter(x=>matchesFilter(x.it)).map(({it,idx})=>(
+                      {items.map((it,idx)=>({it,idx})).filter(x=>invalidDay || matchesFilter(x.it)).map(({it,idx})=>(
                         <div className="day-item" key={it.id||idx} style={{alignItems:"flex-start"}}>
                           <span className="di-name">
+                            {invalidDay && <select className="form-input" style={{fontSize:13,marginBottom:6,minHeight:44}} aria-label={`แก้วันที่ของ ${it.name}`} value="" onChange={e=>moveDaily(d,idx,e.target.value)}>
+                              <option value="" disabled>เลือกวันที่ที่ถูกต้อง</option>
+                              {Array.from({length:days},(_,i)=>i+1).map(day=><option key={day} value={day}>{day} {MONTH_SHORT[month-1]}</option>)}
+                            </select>}
                             <Editable value={it.name} onSave={v=>saveDailyName(String(d),idx,v)} isText style={{fontSize:13,color:"#374151",fontWeight:600}}/>
                             <div style={{display:"flex",alignItems:"center",gap:5,marginTop:2}}><select value={it.category||"📦 อื่น ๆ"} onChange={e=>saveDailyCategory(String(d),idx,e.target.value)} style={{border:0,background:"transparent",fontSize:10,color:"#9CA3AF",padding:0}}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>{it.note&&<span style={{fontSize:10,color:"#9CA3AF"}}>· {it.note}</span>}</div>
                           </span>
                           <span style={{display:"flex",alignItems:"center",gap:6}}>
                             <span className="di-amt"><Editable value={it.amount} onSave={v=>saveDailyAmt(String(d),idx,v)} prefix="฿" style={{fontSize:13,fontWeight:500,color:"#374151"}}/></span>
-                            <button className="icon-del" title="ทำซ้ำ" onClick={()=>duplicateDaily(String(d),idx)}>⧉</button>
+                            <button className="icon-del" title={invalidDay?"แก้วันที่ก่อนทำซ้ำ":"ทำซ้ำ"} disabled={invalidDay} onClick={()=>duplicateDaily(String(d),idx)}>⧉</button>
                             <button className="icon-del" title="ลบ" onClick={()=>delDaily(String(d),idx)}>×</button>
                           </span>
                         </div>
@@ -1897,6 +1956,7 @@ function App() {
                 </div>
               );
             })}
+            {listedDays.length>0 && !invalidDays.length && filteredItems.length===0 && <div className="empty-box">ไม่พบรายการที่ตรงกับการค้นหา<br/><button className="sm-btn" onClick={()=>{setSearchTerm("");setFilterCategory("");}}>ล้างการค้นหาและตัวกรอง</button></div>}
             {!Object.keys(dailyEntries).filter(d=>dailyEntries[d]?.length).length&&
               <div className="empty-box">ยังไม่มีรายจ่ายรายวัน<br/>กด "+ เพิ่มรายจ่าย" เพื่อบันทึก</div>}
           </div>
