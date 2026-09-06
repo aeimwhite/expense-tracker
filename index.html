@@ -570,25 +570,56 @@ function getPrevFixed(year, month) {
   return DEFAULT_FIXED;
 }
 
-function Editable({ value, onSave, prefix="", isText=false, style={} }) {
+function amountError(raw,allowZero=true){
+  if(raw==null || String(raw).trim()==="") return "กรุณากรอกจำนวนเงิน";
+  const text=String(raw).trim(), n=Number(text);
+  if(!Number.isFinite(n)) return "กรุณากรอกตัวเลขที่ถูกต้อง";
+  if(n<0) return "จำนวนเงินต้องไม่ติดลบ";
+  if(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return "ใช้ตัวเลขและจุดทศนิยม เช่น 125.50";
+  if(!allowZero && n===0) return "จำนวนเงินต้องมากกว่า 0";
+  return "";
+}
+function Editable({ value, onSave, prefix="", isText=false, allowZero=true, style={} }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value);
-  useEffect(()=>setVal(value),[value]);
-  const save = () => { const v=isText?String(val).trim():Number(val); if(isText?v:!isNaN(v)) onSave(v); setEditing(false); };
+  const [error,setError] = useState("");
+  const finished=useRef(false);
+  const errorId=React.useId();
+  useEffect(()=>{if(!editing) setVal(value);},[value,editing]);
+  const start = () => {finished.current=false;setVal(value);setError("");setEditing(true);};
+  const cancel = () => {finished.current=true;setVal(value);setError("");setEditing(false);};
+  const save = () => {
+    if(finished.current) return;
+    const message=isText?(!String(val).trim()?"กรุณากรอกชื่อรายการ":""):amountError(val,allowZero);
+    if(message){setError(message);return;}
+    const next=isText?String(val).trim():Number(val);
+    if(next!==value && onSave(next)===false){setError("บันทึกไม่สำเร็จ กรุณาลองใหม่");return;}
+    finished.current=true;setError("");setEditing(false);
+  };
   if(editing) return (
-    <input autoFocus type={isText?"text":"number"} value={val}
-      onChange={e=>setVal(e.target.value)} onBlur={save}
-      onKeyDown={e=>{ if(e.key==="Enter") save(); if(e.key==="Escape") setEditing(false); }}
-      style={{border:"1.5px solid #1B4332",borderRadius:6,padding:"2px 6px",fontFamily:"'Sarabun',sans-serif",
-        fontSize:"inherit",fontWeight:"inherit",color:"#1B4332",width:isText?120:90,outline:"none",background:"#F0FDF4",...style}}/>
+    <span style={{display:"inline-flex",flexDirection:"column",maxWidth:"100%",verticalAlign:"top"}}>
+      <input autoFocus type="text" inputMode={isText?undefined:"decimal"} enterKeyHint="done" value={val}
+        aria-label={isText?"แก้ไขชื่อรายการ":"แก้ไขจำนวนเงิน"} aria-invalid={!!error} aria-describedby={error?errorId:undefined}
+        onChange={e=>{setVal(e.target.value);setError("");}} onBlur={save}
+        onKeyDown={e=>{
+          if(e.nativeEvent.isComposing) return;
+          if(e.key==="Enter"){e.preventDefault();save();}
+          if(e.key==="Escape"){e.preventDefault();e.stopPropagation();cancel();}
+        }}
+        style={{...style,border:`1.5px solid ${error?"#B42318":"#1B4332"}`,borderRadius:6,padding:"2px 6px",fontFamily:"'Sarabun',sans-serif",
+          fontSize:"inherit",fontWeight:"inherit",color:"#1B4332",width:isText?120:90,background:"#F0FDF4"}}/>
+      {error&&<span id={errorId} role="alert" className="field-error">{error}</span>}
+    </span>
   );
-  return <span onClick={()=>setEditing(true)} title="แตะเพื่อแก้ไข"
+  return <span onClick={start} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();start();}}} title="แตะเพื่อแก้ไข"
     style={{cursor:"pointer",borderBottom:"1.5px dashed #B7E4C7",paddingBottom:1,...style}}>
     {prefix}{isText?value:fmt(value)}
   </span>;
 }
 
 const css = `
+.field-error{display:block;color:#B42318;font-size:12px;line-height:1.4;margin-top:4px;white-space:normal;max-width:220px;}
+.form-input[aria-invalid="true"]{border-color:#B42318;}
 .app{max-width:480px;margin:0 auto;min-height:100vh;background:#EEF2EE;padding-bottom:28px;}
 @media (min-width:769px){
   body{margin:0;padding:24px 100px 36px 24px;background:#E9EEEA;overflow-x:hidden;}
@@ -947,6 +978,8 @@ function App() {
   const [fAmt,  setFAmt]  = useState("");
   const [fxName,setFxName]= useState("");
   const [fxAmt, setFxAmt] = useState("");
+  const [dailyErrors,setDailyErrors]=useState({});
+  const [fixedErrors,setFixedErrors]=useState({});
   const [modalTab, setModalTab] = useState("daily");
   const dailyNameRef = useRef(null);
   const [ovYear,   setOvYear]   = useState(now.getFullYear());
@@ -1474,7 +1507,7 @@ function App() {
 
   const saveConfig = (inc, goal) => {
     const data={income:inc??income,savingGoal:goal??savingGoal,monthlyBudget:monthlyBudget,_updatedAt:Date.now()};
-    lsSet("raijai_config",data); queueCloudSave("raijai_config",data);
+    if(!lsSet("raijai_config",data)) return false; queueCloudSave("raijai_config",data); return true;
   };
 
   const totalFixed = (fixedExpenses || [])
@@ -1569,33 +1602,27 @@ function App() {
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
 
-  const addDaily = ()=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
-    const dayNum = Number(fDay);
-    const amountNum = Number(fAmt);
-    if(
-      !Number.isInteger(dayNum) ||
-      dayNum < 1 ||
-      dayNum > days ||
-      !fName.trim() ||
-      !fAmt ||
-      !Number.isFinite(amountNum) ||
-      amountNum < 0
-    ) return false;
-    const dayKey = String(dayNum);
-    const upd={...dailyEntries,[dayKey]:[...(dailyEntries[dayKey]||[]),{id:mkid(),name:fName.trim(),amount:amountNum,category:fCategory,note:fNote.trim()}]};
-    setDaily(upd); saveMonth(null,upd,null); setFName(""); setFAmt(""); setFNote(""); setFCategory(CATEGORIES[0]); setExpDay(dayKey);
-    setTimeout(()=>dailyNameRef.current?.focus(),0);
-    return true;
+  const addDaily = ()=>{
+    if(!canEditMonth()) return false;
+    const errors={amount:amountError(fAmt),name:fName.trim()?"":"กรุณากรอกชื่อรายการ",day:isValidDay(fDay,days)?"":`กรุณาเลือกวันที่ 1–${days}`};
+    setDailyErrors(errors);
+    if(Object.values(errors).some(Boolean)) return false;
+    const dayKey=String(Number(fDay));
+    const upd={...dailyEntries,[dayKey]:[...(dailyEntries[dayKey]||[]),{id:mkid(),name:fName.trim(),amount:Number(fAmt),category:fCategory,note:fNote.trim()}]};
+    if(!saveMonth(null,upd,null)) return false;
+    setDaily(upd);setFName("");setFAmt("");setFNote("");setFCategory(CATEGORIES[0]);setExpDay(dayKey);setDailyErrors({});
+    setTimeout(()=>dailyNameRef.current?.focus(),0);return true;
   };
   const submitDaily = ()=>{
-    const saved = addDaily();
-    if(saved) setShowNote(false);
-    return saved;
+    const saved=addDaily();if(saved)setShowNote(false);return saved;
   };
-  const addFixed = ()=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
-    if(!fxName.trim()||!fxAmt) return;
+  const addFixed = ()=>{
+    if(!canEditMonth()) return false;
+    const errors={amount:amountError(fxAmt),name:fxName.trim()?"":"กรุณากรอกชื่อรายจ่าย"};
+    setFixedErrors(errors);if(Object.values(errors).some(Boolean)) return false;
     const nf=[...fixedExpenses,{id:mkid(),name:fxName.trim(),amount:Number(fxAmt)}];
-    setFixed(nf); saveMonth(nf,null,null); setFxName(""); setFxAmt("");
+    if(!saveMonth(nf,null,null)) return false;
+    setFixed(nf);setFxName("");setFxAmt("");setFixedErrors({});return true;
   };
   const canEditMonth = () => monthDataReady && hydratedMonthKey===monthKey && activeMonthKeyRef.current===monthKey;
   const moveDaily = (day,idx,newDay) => {
@@ -1657,19 +1684,29 @@ function App() {
     setLastDeleted(null);return true;
   };
   const togglePaid = id=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...paidFixed,[id]:!paidFixed[id]}; setPaid(upd); saveMonth(null,null,upd); };
-  const saveIncome    = v=>{ const n=Number(v); if(!isNaN(n)&&n>0){setIncome(n);saveConfig(n,null);} };
-  const saveGoal      = v=>{ const n=Number(v); if(!isNaN(n)&&n>=0){setSavingGoal(n);saveConfig(null,n);} };
-  const saveBudget = v=>{ const n=Number(v); if(!isNaN(n)&&n>=0){setMonthlyBudget(n); const data={income,savingGoal,monthlyBudget:n,_updatedAt:Date.now()}; lsSet("raijai_config",data); queueCloudSave("raijai_config",data);} };
+  const saveIncome = v=>{
+    if(amountError(v,false)) return false;
+    const n=Number(v);if(!saveConfig(n,null))return false;setIncome(n);return true;
+  };
+  const saveGoal = v=>{
+    if(amountError(v))return false;
+    const n=Number(v);if(!saveConfig(null,n))return false;setSavingGoal(n);return true;
+  };
+  const saveBudget = v=>{
+    if(amountError(v))return false;
+    const n=Number(v),data={income,savingGoal,monthlyBudget:n,_updatedAt:Date.now()};
+    if(!lsSet("raijai_config",data))return false;
+    queueCloudSave("raijai_config",data);setMonthlyBudget(n);return true;
+  };
   const saveSavingName = (id,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
     const items=savingItems.map(x=>x.id===id?{...x,name:String(v).trim()||x.name}:x);
     setSavingItems(items); saveMonth(null,null,null,items);
   };
-  const saveSavingAmt = (id,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
-    const n=Number(v);
-    if(!isNaN(n)&&n>=0){
-      const items=savingItems.map(x=>x.id===id?{...x,amount:n}:x);
-      setSavingItems(items); saveMonth(null,null,null,items);
-    }
+  const saveSavingAmt = (id,v)=>{
+    if(!canEditMonth() || amountError(v) || !savingItems.some(x=>x.id===id))return false;
+    const items=savingItems.map(x=>x.id===id?{...x,amount:Number(v)}:x);
+    if(!saveMonth(null,null,null,items))return false;
+    setSavingItems(items);return true;
   };
   const addSavingItem = ()=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
     const items=[...savingItems,{id:mkid(),name:"ออมใหม่",amount:0}];
@@ -1679,12 +1716,22 @@ function App() {
     const items=savingItems.filter(x=>x.id!==id);
     setSavingItems(items); saveMonth(null,null,null,items);
   };
-  const saveFixedAmt  = (id,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const nf=fixedExpenses.map(e=>e.id===id?{...e,amount:Number(v)}:e); setFixed(nf); saveMonth(nf,null,null); };
+  const saveFixedAmt = (id,v)=>{
+    if(!canEditMonth() || amountError(v) || !fixedExpenses.some(x=>x.id===id))return false;
+    const nf=fixedExpenses.map(e=>e.id===id?{...e,amount:Number(v)}:e);
+    if(!saveMonth(nf,null,null))return false;
+    setFixed(nf);return true;
+  };
   const saveFixedName = (id,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const nf=fixedExpenses.map(e=>e.id===id?{...e,name:v}:e); setFixed(nf); saveMonth(nf,null,null); };
   const saveFixedCategory = (id,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const nf=fixedExpenses.map(e=>e.id===id?{...e,category:v}:e); setFixed(nf); saveMonth(nf,null,null); };
   const saveDailyName = (day,idx,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,name:v}:it)}; setDaily(upd); saveMonth(null,upd,null); };
   const saveDailyCategory = (day,idx,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,category:v}:it)}; setDaily(upd); saveMonth(null,upd,null); };
-  const saveDailyAmt  = (day,idx,v)=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,amount:Number(v)}:it)}; setDaily(upd); saveMonth(null,upd,null); };
+  const saveDailyAmt = (day,idx,v)=>{
+    if(!canEditMonth() || amountError(v) || !dailyEntries[day]?.[idx])return false;
+    const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,amount:Number(v)}:it)};
+    if(!saveMonth(null,upd,null))return false;
+    setDaily(upd);return true;
+  };
 
   const days = daysInMonth(year,month);
   const listedDays = dailyDayKeys(dailyEntries,days);
@@ -1789,7 +1836,7 @@ function App() {
           </div>
           <div className="income-row">
             เงินเดือน:&nbsp;
-            <Editable value={income} onSave={saveIncome} prefix="฿" style={{color:"rgba(255,255,255,0.9)",fontSize:13,fontWeight:600}}/>
+            <Editable value={income} allowZero={false} onSave={saveIncome} prefix="฿" style={{color:"rgba(255,255,255,0.9)",fontSize:13,fontWeight:600}}/>
             <span style={{fontSize:11,opacity:.45,marginLeft:4}}>(แตะแก้ไข)</span>
           </div>
         </div>
@@ -2126,10 +2173,7 @@ function App() {
                 className="modal-icon-btn save"
                 aria-label={modalTab==="daily"?"บันทึกรายจ่าย":"เพิ่มรายจ่ายประจำ"}
                 title={modalTab==="daily"?"บันทึก":"เพิ่ม"}
-                disabled={modalTab==="daily"
-                  ? !(Number.isInteger(Number(fDay)) && Number(fDay)>=1 && Number(fDay)<=days && fName.trim() && fAmt && Number.isFinite(Number(fAmt)) && Number(fAmt)>=0)
-                  : !(fxName.trim() && fxAmt)
-                }
+                disabled={!monthDataReady || hydratedMonthKey!==monthKey}
                 onClick={()=>{ modalTab==="daily" ? submitDaily() : addFixed(); }}
               >✓</button>
             </div>
@@ -2144,7 +2188,8 @@ function App() {
               <div className="modal-meta-grid">
                 <div className="form-group">
                   <label className="form-label" htmlFor="expense-day">วันที่</label>
-                  <input id="expense-day" className="form-input" type="number" inputMode="numeric" min="1" max={days} value={fDay} onChange={e=>setFDay(e.target.value)} onFocus={e=>ensureFieldVisible(e.currentTarget)}/>
+                  <input id="expense-day" className="form-input" type="number" inputMode="numeric" min="1" max={days} value={fDay} aria-invalid={!!dailyErrors.day} aria-describedby={dailyErrors.day?"expense-day-error":undefined} onChange={e=>{setFDay(e.target.value);setDailyErrors(v=>({...v,day:""}));}} onFocus={e=>ensureFieldVisible(e.currentTarget)}/>
+                  {dailyErrors.day && <span id="expense-day-error" className="field-error" role="alert">{dailyErrors.day}</span>}
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="expense-category">หมวดหมู่</label>
@@ -2154,7 +2199,8 @@ function App() {
 
               <div className="form-group">
                 <label className="form-label" htmlFor="expense-name">รายการ</label>
-                <input id="expense-name" className="form-input" type="text" value={fName} onChange={e=>setFName(e.target.value)} placeholder="เช่น ข้าวมันไก่, ชา…" ref={dailyNameRef} onFocus={e=>ensureFieldVisible(e.currentTarget)}/> 
+                <input id="expense-name" className="form-input" type="text" value={fName} aria-invalid={!!dailyErrors.name} aria-describedby={dailyErrors.name?"expense-name-error":undefined} onChange={e=>{setFName(e.target.value);setDailyErrors(v=>({...v,name:""}));}} placeholder="เช่น ข้าวมันไก่, ชา…" ref={dailyNameRef} onFocus={e=>ensureFieldVisible(e.currentTarget)}/> 
+                  {dailyErrors.name && <span id="expense-name-error" className="field-error" role="alert">{dailyErrors.name}</span>}
               </div>
               <div className="form-group">
                 <div className="amount-label-row">
@@ -2177,20 +2223,23 @@ function App() {
                   id="expense-amount"
                   ref={amountInputRef}
                   className="form-input"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
                   enterKeyHint="done"
                   value={fAmt}
-                  onChange={e=>setFAmt(e.target.value)}
+                  aria-invalid={!!dailyErrors.amount}
+                  aria-describedby={dailyErrors.amount?"expense-amount-error":undefined}
+                  onChange={e=>{setFAmt(e.target.value);setDailyErrors(v=>({...v,amount:""}));}}
                   placeholder="0"
                   onFocus={e=>ensureFieldVisible(e.currentTarget)}
                   onKeyDown={e=>{
-                    if(e.key==="Enter" && String(fAmt).trim()!==""){
+                    if(e.key==="Enter" && !e.nativeEvent.isComposing){
                       e.preventDefault();
                       submitDaily();
                     }
                   }}
                 />
+                {dailyErrors.amount && <span id="expense-amount-error" className="field-error" role="alert">{dailyErrors.amount}</span>}
               </div>
               {(showNote || !!fNote.trim()) && (
                 <div className="form-group">
@@ -2216,11 +2265,17 @@ function App() {
             <div className="modal-body" ref={modalBodyRef}>
               <div className="form-group">
                 <label className="form-label" htmlFor="fixed-name">ชื่อรายจ่าย</label>
-                <input id="fixed-name" className="form-input" type="text" value={fxName} onChange={e=>setFxName(e.target.value)} placeholder="เช่น Netflix, ค่าน้ำ…" onFocus={e=>ensureFieldVisible(e.currentTarget)}/> 
+                <input id="fixed-name" className="form-input" type="text" value={fxName} aria-invalid={!!fixedErrors.name} aria-describedby={fixedErrors.name?"fixed-name-error":undefined} onChange={e=>{setFxName(e.target.value);setFixedErrors(v=>({...v,name:""}));}} placeholder="เช่น Netflix, ค่าน้ำ…" onFocus={e=>ensureFieldVisible(e.currentTarget)}/> 
+                  {fixedErrors.name && <span id="fixed-name-error" className="field-error" role="alert">{fixedErrors.name}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label" htmlFor="fixed-amount">จำนวนเงิน (฿)</label>
-                <input id="fixed-amount" className="form-input" type="number" inputMode="decimal" value={fxAmt} onChange={e=>setFxAmt(e.target.value)} placeholder="0" onFocus={e=>ensureFieldVisible(e.currentTarget)}/> 
+                <input id="fixed-amount" className="form-input" type="text" inputMode="decimal" enterKeyHint="done" value={fxAmt}
+                  aria-invalid={!!fixedErrors.amount} aria-describedby={fixedErrors.amount?"fixed-amount-error":undefined}
+                  onChange={e=>{setFxAmt(e.target.value);setFixedErrors(v=>({...v,amount:""}));}}
+                  onKeyDown={e=>{if(e.key==="Enter"&&!e.nativeEvent.isComposing){e.preventDefault();addFixed();}}}
+                  placeholder="0" onFocus={e=>ensureFieldVisible(e.currentTarget)}/>
+                {fixedErrors.amount && <span id="fixed-amount-error" className="field-error" role="alert">{fixedErrors.amount}</span>} 
               </div>
             </div>
             <div className="modal-actions">
