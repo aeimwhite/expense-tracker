@@ -788,6 +788,9 @@ input[type="checkbox"]:focus-visible{
 .icon-del:disabled{cursor:not-allowed;opacity:.4;}
 .day-header:focus-visible{position:relative;z-index:1;}
 @media(max-width:600px){.icon-del{min-width:40px;height:40px;}}
+.undo-toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1100;width:min(440px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:11px 12px 11px 16px;border:1px solid #D1FAE5;border-radius:14px;background:#173D2E;color:#fff;box-shadow:0 12px 32px rgba(15,23,42,.24);}
+.undo-toast-text{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.undo-toast .sm-btn{flex:0 0 auto;background:#fff;color:#1B4332;min-height:36px;}
 </style>
 </head>
 <body>
@@ -1112,6 +1115,11 @@ function App() {
   const activeMonthKeyRef = useRef(monthKey);
   activeMonthKeyRef.current = monthKey;
   useEffect(()=>{setLastDeleted(null);setExpDay(null);},[monthKey]);
+  useEffect(()=>{
+    if(!lastDeleted) return;
+    const timer=setTimeout(()=>setLastDeleted(null),8000);
+    return ()=>clearTimeout(timer);
+  },[lastDeleted]);
 
   const validSyncUrl = url => /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(String(url||"").trim());
   const fetchCloud = async (url,options={}) => {
@@ -1673,6 +1681,11 @@ function App() {
       const paid={...paidFixed,[item.id]:lastDeleted.paid};
       if(!saveMonth(nf,null,paid)) return false;
       setFixed(nf);setPaid(paid);
+    }else if(lastDeleted.type==="saving"){
+      if(savingItems.some(x=>x.id===item.id)){setLastDeleted(null);return false;}
+      const items=[...savingItems];items.splice(Math.min(lastDeleted.idx,items.length),0,item);
+      if(!saveMonth(null,null,null,items)) return false;
+      setSavingItems(items);
     }else return false;
     setLastDeleted(null);return true;
   };
@@ -1708,9 +1721,14 @@ function App() {
     const items=[...savingItems,{id:mkid(),name:"ออมใหม่",amount:0}];
     setSavingItems(items); saveMonth(null,null,null,items);
   };
-  const delSavingItem = id=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false;
+  const delSavingItem = id=>{
+    if(!canEditMonth()) return false;
+    const idx=savingItems.findIndex(x=>x.id===id),removed=savingItems[idx];
+    if(!removed) return false;
     const items=savingItems.filter(x=>x.id!==id);
-    setSavingItems(items); saveMonth(null,null,null,items);
+    if(!saveMonth(null,null,null,items)) return false;
+    setLastDeleted({type:"saving",monthKey,idx,item:removed});setSavingItems(items);
+    return true;
   };
   const saveFixedAmt = (id,v)=>{
     if(!canEditMonth() || amountError(v) || !fixedExpenses.some(x=>x.id===id))return false;
@@ -1804,6 +1822,7 @@ function App() {
   return (<>
     <div className="app">
       {!monthDataReady && tab==="month" && <div role="status" className="notice">กำลังโหลดข้อมูลเดือนนี้… หากโหลดไม่สำเร็จให้กดซิงก์แล้วเปิดเดือนนี้ใหม่</div>}
+      {lastDeleted?.monthKey===monthKey&&<div className="undo-toast" role="region" aria-live="polite" aria-label="รายการถูกลบ"><span className="undo-toast-text">ลบ “{lastDeleted.item?.name||"รายการ"}” แล้ว</span><button className="sm-btn" onClick={undoDelete}>↩️ ยกเลิก</button></div>}
       {/* ═══ MONTH TAB ═══ */}
       {tab==="month"&&(<>
         <div className="header">
@@ -1946,7 +1965,6 @@ function App() {
             <select className="form-input" aria-label="กรองรายจ่ายตามหมวดหมู่" style={{flex:"0 1 180px",padding:"8px 10px"}} value={filterCategory} onChange={e=>setFilterCategory(e.target.value)}><option value="">ทุกหมวดหมู่</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
           </div>
           {invalidDays.length>0 && <div className="notice" role="status">⚠️ พบรายการวันที่ไม่ถูกต้อง ฿{fmt(invalidDayTotal)} — ยังรวมอยู่ในยอดรายจ่าย เลือกวันที่ที่ถูกต้องหรือลบรายการด้านล่าง รายการเหล่านี้แสดงแม้กำลังกรองข้อมูล</div>}
-          {lastDeleted?.monthKey===monthKey&&<div className="notice" style={{justifyContent:"space-between"}}><span>ลบรายการแล้ว</span><button className="sm-btn" onClick={undoDelete}>↩️ ยกเลิกการลบ</button></div>}
           <div className="list-box">
             {listedDays.filter(d=>!isValidDay(d,days) || (dailyEntries[d]||[]).some(matchesFilter)).map(d=>{
               const items=dailyEntries[String(d)]||[];
