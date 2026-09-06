@@ -810,20 +810,20 @@ input[type="checkbox"]:focus-visible{
 .mbadge{min-width:40px;min-height:36px;}
 
 /* Monthly expense cards — clear status, readable type and consistent controls. */
-.fixed-expense-card{position:relative;gap:9px !important;padding:12px 13px !important;border-color:#DCE5DF !important;transition:border-color .16s ease,background .16s ease;}
-.fixed-expense-card.is-paid{background:#F3F8F5 !important;border-color:#BFD8C7 !important;}
+.two-col-fixed > .fixed-expense-card{position:relative;gap:9px !important;padding:12px 13px !important;border-color:#DCE5DF !important;transition:border-color .16s ease,background .16s ease;}
+.two-col-fixed > .fixed-expense-card.is-paid{background:#F3F8F5 !important;border-color:#BFD8C7 !important;}
 .fixed-card-top,.fixed-card-bottom{display:flex;align-items:center;gap:8px;width:100%;min-width:0;}
-.fixed-card-top .fx-name{min-width:0;margin:0 !important;font-size:14px !important;line-height:1.4 !important;}
+.two-col-fixed > .fixed-expense-card .fixed-card-top .fx-name{min-width:0;margin:0 !important;font-size:14px !important;line-height:1.4 !important;}
 .fixed-expense-card.is-paid .fx-name{opacity:.7;text-decoration:line-through;}
 .fixed-card-bottom{justify-content:space-between;}
-.fixed-card-bottom .fx-amt{margin:0 !important;font-size:15px !important;font-weight:700;color:#1B4332;font-variant-numeric:tabular-nums;}
+.two-col-fixed > .fixed-expense-card .fixed-card-bottom .fx-amt{margin:0 !important;font-size:15px !important;font-weight:700;color:#1B4332;font-variant-numeric:tabular-nums;}
 .fixed-check-wrap{display:flex;align-items:center;justify-content:center;width:40px;height:40px;flex:0 0 40px;border-radius:9px;background:#F2F4F3;cursor:pointer;}
 .is-paid .fixed-check-wrap{background:#DDEDE3;}
 .fixed-expense-card .fx-check{width:21px !important;height:21px !important;margin:0 !important;}
 .fixed-status{align-self:flex-start;flex:0 0 auto;padding:3px 7px;border-radius:999px;background:#FFF3D6;color:#805500;font-size:11px;font-weight:600;line-height:1.35;}
 .fixed-status.paid{background:#DDEDE3;color:#17603A;}
-.fixed-expense-card .fx-category-select{width:100% !important;height:44px !important;margin:0 !important;padding:0 10px;border-color:#DCE5DF;background:#F8FAF9;color:#52635A;font-size:12px;}
-.fixed-expense-card .fx-del{margin:0 !important;}
+.two-col-fixed > .fixed-expense-card .fx-category-select{width:100% !important;height:44px !important;margin:0 !important;padding:0 10px;border-color:#DCE5DF;background:#F8FAF9;color:#52635A;font-size:12px;}
+.two-col-fixed > .fixed-expense-card .fx-del{margin:0 !important;}
 .action-icon-svg{display:block;width:18px;height:18px;}
 
 /* Daily expenses — stronger day hierarchy and aligned amounts. */
@@ -844,7 +844,7 @@ input[type="checkbox"]:focus-visible{
 .di-note{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#667085;}
 .day-item-actions{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
 @media(max-width:600px){
-  .fixed-expense-card{padding:10px !important;gap:8px !important;}
+  .two-col-fixed > .fixed-expense-card{padding:10px !important;gap:8px !important;}
   .fixed-check-wrap{width:44px;height:44px;flex-basis:44px;}
   .fixed-status{font-size:10px;padding:3px 6px;}
   .day-header{padding:10px 12px;gap:8px;}
