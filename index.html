@@ -553,6 +553,119 @@ const css = `
   .modal{width:min(760px,calc(100vw - 220px)) !important;max-height:88vh !important;}
 }
 @media (min-width:1500px){body{padding-left:40px;padding-right:110px;}.app{max-width:1280px !important;}.section{margin-left:44px !important;margin-right:44px !important;}.ov-header,.ov-cards,.backup-row{padding-left:44px !important;padding-right:44px !important;}.main-nav{justify-content:flex-end;}}
+/* ===== Mobile expense modal: keyboard-safe UX only ===== */
+@media (max-width:768px){
+  .overlay{
+    height:var(--vvh,100dvh);
+    min-height:0;
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+    align-items:flex-end;
+  }
+  .modal{
+    width:100%;
+    max-width:520px;
+    max-height:calc(var(--vvh,100dvh) - 16px);
+    padding:15px 14px calc(12px + env(safe-area-inset-bottom));
+    border-radius:18px;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    scroll-padding-bottom:90px;
+  }
+  .modal-title{font-size:17px;margin-bottom:10px;}
+  .modal-close{right:10px;top:9px;width:34px;height:34px;line-height:34px;font-size:22px;}
+  .modal-tabs{margin-bottom:10px;padding:2px;}
+  .modal-tab{padding:7px 6px;font-size:13px;}
+
+  /* Date + category share one row, saving vertical space above the keyboard. */
+  .modal .mobile-form-row{
+    display:grid;
+    grid-template-columns:82px minmax(0,1fr);
+    gap:8px;
+    align-items:end;
+  }
+  .modal .mobile-form-row .form-group{min-width:0;}
+  .form-group{margin-bottom:9px;}
+  .form-label{font-size:12px;margin-bottom:3px;}
+  .form-input{
+    min-height:40px;
+    padding:8px 10px;
+    border-radius:10px !important;
+    font-size:14px;
+  }
+  .btn-row{
+    position:sticky;
+    bottom:0;
+    z-index:3;
+    margin:5px -2px 0;
+    padding-top:8px;
+    background:linear-gradient(to bottom,rgba(255,255,255,0),#fff 10px);
+  }
+  .btn-primary,.btn-cancel{min-height:44px;padding:10px 14px;}
+}
+
+/* ===== Mobile modal usability refinements ===== */
+@media (max-width:768px){
+  .modal{
+    box-shadow:0 8px 30px rgba(0,0,0,.14);
+  }
+  .modal-title{
+    padding-left:2px;
+  }
+  .modal .form-group{
+    margin-bottom:8px;
+  }
+  .modal .form-input{
+    background:#fff;
+    -webkit-appearance:none;
+    appearance:none;
+  }
+  .modal .mobile-form-row .form-input{
+    width:100%;
+  }
+  .modal-note-toggle{
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    border:0;
+    background:#F7F8F7;
+    color:#374151;
+    border-radius:10px;
+    padding:9px 11px;
+    margin:1px 0 8px;
+    font-family:'Sarabun',sans-serif;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .modal-note-toggle .note-hint{
+    color:#9CA3AF;
+    font-weight:400;
+    margin-left:auto;
+  }
+  .modal-note-wrap{
+    margin-bottom:8px;
+  }
+  .modal-note-wrap .form-group{
+    margin-bottom:0;
+  }
+  .modal-note-input{
+    min-height:42px !important;
+  }
+  .modal .btn-row{
+    margin-top:3px;
+    padding-top:6px;
+  }
+}
+
+@media (max-width:380px){
+  .modal{padding-left:12px;padding-right:12px;}
+  .modal .mobile-form-row{grid-template-columns:74px minmax(0,1fr);gap:7px;}
+  .form-input{font-size:13px;min-height:38px;padding:7px 9px;}
+  .btn-primary,.btn-cancel{font-size:14px;}
+}
+
 .main-nav{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
 .nav-btn{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:none;border-radius:12px;background:transparent;cursor:pointer;color:#9CA3AF;position:relative;transition:.18s ease;}
 .nav-btn:hover{background:#F0FDF4;color:#1B4332;transform:translateY(-1px);}
@@ -765,7 +878,9 @@ function App() {
   const [fxName,setFxName]= useState("");
   const [fxAmt, setFxAmt] = useState("");
   const [modalTab, setModalTab] = useState("daily");
+  const dailyDayRef = useRef(null);
   const dailyNameRef = useRef(null);
+  const dailyAmtRef = useRef(null);
   const [ovYear,   setOvYear]   = useState(now.getFullYear());
   const [allMonthData, setAllMonthData] = useState({});
   const [syncUrl, setSyncUrl] = useState(()=>localStorage.getItem("raijai_sync_url")||"");
@@ -786,6 +901,7 @@ function App() {
   const [filterCategory, setFilterCategory] = useState("");
   const [fCategory, setFCategory] = useState(CATEGORIES[0]);
   const [fNote, setFNote] = useState("");
+  const [noteOpen, setNoteOpen] = useState(false);
   const [lastDeleted, setLastDeleted] = useState(null);
 
   // Lock the page behind the modal so only the modal itself can scroll.
@@ -813,6 +929,27 @@ function App() {
       body.style.touchAction = prev.touchAction;
       html.style.overflow = prev.htmlOverflow;
       window.scrollTo(0, scrollY);
+    };
+  }, [modal]);
+
+  // Android keyboards can shrink the visual viewport without changing the layout viewport.
+  // Keep the expense modal sized to the visible area only; this is UI-only and does not
+  // touch expense data, calculations, or Google Sync.
+  useEffect(() => {
+    if(!modal) return;
+    const vv = window.visualViewport;
+    if(!vv) return;
+    const updateVisualViewport = () => {
+      const h = Math.max(280, Math.round(vv.height));
+      document.documentElement.style.setProperty("--vvh", `${h}px`);
+    };
+    updateVisualViewport();
+    vv.addEventListener("resize", updateVisualViewport);
+    vv.addEventListener("scroll", updateVisualViewport);
+    return () => {
+      vv.removeEventListener("resize", updateVisualViewport);
+      vv.removeEventListener("scroll", updateVisualViewport);
+      document.documentElement.style.removeProperty("--vvh");
     };
   }, [modal]);
 
@@ -1335,6 +1472,11 @@ function App() {
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
 
+  const scrollModalField = (el)=>{
+    if(!el) return;
+    setTimeout(()=>el.scrollIntoView({block:"center",behavior:"smooth"}),80);
+  };
+
   const addDaily = ()=>{
     const dayNum = Number(fDay);
     const amountNum = Number(fAmt);
@@ -1349,7 +1491,7 @@ function App() {
     ) return false;
     const dayKey = String(dayNum);
     const upd={...dailyEntries,[dayKey]:[...(dailyEntries[dayKey]||[]),{id:mkid(),name:fName.trim(),amount:amountNum,category:fCategory,note:fNote.trim()}]};
-    setDaily(upd); saveMonth(null,upd,null); setFName(""); setFAmt(""); setFNote(""); setFCategory(CATEGORIES[0]); setExpDay(dayKey);
+    setDaily(upd); saveMonth(null,upd,null); setFName(""); setFAmt(""); setFNote(""); setNoteOpen(false); setFCategory(CATEGORIES[0]); setExpDay(dayKey);
     setTimeout(()=>dailyNameRef.current?.focus(),0);
     return true;
   };
@@ -1815,11 +1957,17 @@ function App() {
             <button className={`modal-tab${modalTab==="fixed"?" active":""}`} onClick={()=>setModalTab("fixed")}>ประจำเดือน</button>
           </div>
           {modalTab==="daily"?(<>
-            <div className="form-group"><label className="form-label">วันที่</label><input className="form-input" type="number" min="1" max={days} value={fDay} onChange={e=>setFDay(e.target.value)}/></div>
-            <div className="form-group"><label className="form-label">รายการ</label><input className="form-input" type="text" value={fName} onChange={e=>setFName(e.target.value)} placeholder="เช่น ข้าวมันไก่, ชา…" ref={dailyNameRef}/></div>
-            <div className="form-group"><label className="form-label">จำนวนเงิน (฿)</label><input className="form-input" type="number" value={fAmt} onChange={e=>setFAmt(e.target.value)} placeholder="0" onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addDaily();}}}/></div>
-            <div className="form-group"><label className="form-label">หมวดหมู่</label><select className="form-input" value={fCategory} onChange={e=>setFCategory(e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
-            <div className="form-group"><label className="form-label">หมายเหตุ (ไม่บังคับ)</label><input className="form-input" type="text" value={fNote} onChange={e=>setFNote(e.target.value)} placeholder="เช่น โปร 1 แถม 1, ซื้อเข้าบ้าน…"/></div>
+            <div className="mobile-form-row">
+              <div className="form-group"><label className="form-label">วันที่</label><input className="form-input" type="number" min="1" max={days} value={fDay} onChange={e=>setFDay(e.target.value)} ref={dailyDayRef} enterKeyHint="next" onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();dailyNameRef.current?.focus();}}}/></div>
+              <div className="form-group"><label className="form-label">หมวดหมู่</label><select className="form-input" value={fCategory} onChange={e=>setFCategory(e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
+            </div>
+            <div className="form-group"><label className="form-label">รายการ</label><input className="form-input" type="text" value={fName} onChange={e=>setFName(e.target.value)} placeholder="เช่น ข้าวมันไก่, ชา…" ref={dailyNameRef} enterKeyHint="next" onFocus={e=>scrollModalField(e.currentTarget)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();dailyAmtRef.current?.focus();}}}/></div>
+            <div className="form-group"><label className="form-label">จำนวนเงิน (฿)</label><input className="form-input" type="number" inputMode="decimal" value={fAmt} onChange={e=>setFAmt(e.target.value)} placeholder="0" ref={dailyAmtRef} enterKeyHint="done" onFocus={e=>scrollModalField(e.currentTarget)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addDaily();}}}/></div>
+            <button type="button" className="modal-note-toggle" onClick={()=>setNoteOpen(v=>!v)} aria-expanded={noteOpen}>
+              <span>📝 หมายเหตุ <span style={{fontWeight:400,color:'#9CA3AF'}}>(ไม่บังคับ)</span></span>
+              <span className="note-hint">{noteOpen ? "ซ่อน" : (fNote ? "มีข้อความ" : "เพิ่มได้")}&nbsp;⌄</span>
+            </button>
+            {noteOpen&&<div className="modal-note-wrap"><div className="form-group"><input className="form-input modal-note-input" type="text" value={fNote} onChange={e=>setFNote(e.target.value)} placeholder="เช่น โปร 1 แถม 1, ซื้อเข้าบ้าน…" enterKeyHint="done" onFocus={e=>scrollModalField(e.currentTarget)}/></div></div>}
             <div className="btn-row"><button className="btn-cancel" onClick={()=>setModal(null)}>ยกเลิก</button><button className="btn-primary" onClick={addDaily}>บันทึก</button></div>
           </>):(<>
             <div className="form-group"><label className="form-label">ชื่อรายจ่าย</label><input className="form-input" type="text" value={fxName} onChange={e=>setFxName(e.target.value)} placeholder="เช่น Netflix, ค่าน้ำ…"/></div>
