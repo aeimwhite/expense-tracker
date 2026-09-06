@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>บันทึกรายจ่าย — Expense Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -791,6 +791,19 @@ input[type="checkbox"]:focus-visible{
 .undo-toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1100;width:min(440px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:11px 12px 11px 16px;border:1px solid #D1FAE5;border-radius:14px;background:#173D2E;color:#fff;box-shadow:0 12px 32px rgba(15,23,42,.24);}
 .undo-toast-text{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .undo-toast .sm-btn{flex:0 0 auto;background:#fff;color:#1B4332;min-height:36px;}
+/* Final accessibility pass: readable supporting text without changing layout hierarchy. */
+.income-row{color:rgba(255,255,255,.82);}
+.balance-context,.balance-progress-head{font-size:12px;color:#D1FAE5;}
+.bm-label{font-size:11px;color:rgba(255,255,255,.82);}
+.hint,.ov-csub,.fx-ov-sub,.fx-ov-pct{font-size:12px;color:#667085;}
+.ov-clabel,.sync-desc,.sync-status{font-size:12px;}
+.empty-box{color:#667085;}
+.icon-del{color:#667085;}
+.annual-fixed-months,.annual-fixed-avg,.future-badge{font-size:11px;}
+.month-table th{font-size:clamp(10px,2.7vw,11px);color:#667085;}
+.month-table td{font-size:clamp(11px,2.9vw,13px);}
+.month-table td.num{font-size:clamp(10px,2.7vw,12px);}
+.mbadge{min-width:40px;min-height:36px;}
 </style>
 </head>
 <body>
@@ -2188,7 +2201,7 @@ function App() {
         <div className="sync-title">☁️ Google Sync — ใช้ข้อมูลเดียวกันบน PC และมือถือ</div>
         <div className="sync-desc">วาง URL ของ Google Apps Script Web App (ลงท้าย /exec) ครั้งเดียวต่ออุปกรณ์ หลังจากนั้นการแก้ข้อมูลจะอัปขึ้นคลาวด์อัตโนมัติ</div>
         <div className="sync-row">
-          <input className="sync-input" value={syncUrl} onChange={e=>setSyncUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/>
+          <input className="sync-input" type="url" inputMode="url" autoComplete="url" aria-label="URL สำหรับ Google Sync" value={syncUrl} onChange={e=>setSyncUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/>
           <button className="backup-btn" style={{flex:"0 0 auto"}} onClick={saveSyncUrl}>บันทึก URL</button>
           <button className="backup-btn" style={{flex:"0 0 auto"}} disabled={syncBusy} onClick={()=>syncNow()}>{syncBusy?"กำลังซิงก์…":"🔄 ซิงก์ตอนนี้"}</button>
         </div>
