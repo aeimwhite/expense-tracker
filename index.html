@@ -518,6 +518,7 @@ function validateBackup(data){
   if(data.config!=null && (!isRecord(data.config) || !["income","savingGoal","monthlyBudget"].every(k=>data.config[k]==null || money(data.config[k])))) throw new Error("ข้อมูลรายรับไม่ถูกต้อง");
   for(const [key,md] of Object.entries(data.months)){
     if(!isMonthStorageKey(key) || !isRecord(md) || !items(md.fixedExpenses) || !isRecord(md.daily) || !isRecord(md.paid)) throw new Error("ข้อมูลเดือนไม่ถูกต้อง");
+    if(md.income!=null && !money(md.income)) throw new Error("ข้อมูลรายรับรายเดือนไม่ถูกต้อง");
     // Keep legacy out-of-month days intact; date repair is a separate operation.
     if(!Object.entries(md.daily).every(([day,list])=>/^([1-9]|[12][0-9]|3[01])$/.test(day) && items(list))) throw new Error("ข้อมูลรายวันไม่ถูกต้อง");
     if(md.savingItems!=null && !items(md.savingItems)) throw new Error("ข้อมูลเงินออมไม่ถูกต้อง");
@@ -561,6 +562,24 @@ function getPrevFixed(year, month) {
     if(d?.fixedExpenses?.length) return d.fixedExpenses;
   }
   return DEFAULT_FIXED;
+}
+
+const isValidIncome = value => value!==null && value!==undefined && String(value).trim()!==""
+  && Number.isFinite(Number(value)) && Number(value)>=0;
+const getLegacyIncome = () => {
+  const value=lsGet("raijai_config")?.income;
+  return isValidIncome(value) ? Number(value) : 0;
+};
+const resolveMonthIncome = (monthData, fallback=getLegacyIncome()) =>
+  isValidIncome(monthData?.income) ? Number(monthData.income) : Number(fallback)||0;
+function getPrevIncome(year, month) {
+  for(let i=1;i<=12;i++){
+    let y=year, m=month-i;
+    while(m<1){m+=12;y--;}
+    const data=lsGet(`raijai_${y}-${String(m).padStart(2,"0")}`);
+    if(data && typeof data==="object") return resolveMonthIncome(data);
+  }
+  return getLegacyIncome();
 }
 
 function amountError(raw,allowZero=true){
@@ -1140,7 +1159,8 @@ function App() {
     return Array.isArray(data.fixedExpenses) && data.fixedExpenses.length===0
       && data.daily && typeof data.daily==="object" && Object.keys(data.daily).length===0
       && data.paid && typeof data.paid==="object" && Object.keys(data.paid).length===0
-      && Array.isArray(data.savingItems) && data.savingItems.length===0;
+      && Array.isArray(data.savingItems) && data.savingItems.length===0
+      && data.income==null;
   };
 
   // Decode cloud records returned as object, JSON text, or Sheets-style escaped text.
@@ -1224,10 +1244,10 @@ function App() {
       }
       if(changed){
         const cfg=lsGet("raijai_config");
-        if(cfg){if(cfg.income!=null)setIncome(cfg.income);if(cfg.savingGoal!=null)setSavingGoal(cfg.savingGoal);if(cfg.monthlyBudget!=null)setMonthlyBudget(cfg.monthlyBudget);}
+        if(cfg){if(cfg.savingGoal!=null)setSavingGoal(cfg.savingGoal);if(cfg.monthlyBudget!=null)setMonthlyBudget(cfg.monthlyBudget);}
         // Resolve the active key AFTER the request, never from an old render closure.
         const key=activeMonthKeyRef.current, md=lsGet(key);
-        if(md){setFixed(md.fixedExpenses||[]);setDaily(md.daily||{});setPaid(md.paid||{});setSavingItems(md.savingItems||[]);setDailyBudgetSnapshots(md.dailyBudgetSnapshots||{});setDailyBudgetSnapshotVersion(Number(md.dailyBudgetSnapshotVersion)||0);}
+        if(md){setIncome(resolveMonthIncome(md,cfg?.income));setFixed(md.fixedExpenses||[]);setDaily(md.daily||{});setPaid(md.paid||{});setSavingItems(md.savingItems||[]);setDailyBudgetSnapshots(md.dailyBudgetSnapshots||{});setDailyBudgetSnapshotVersion(Number(md.dailyBudgetSnapshotVersion)||0);}
         setRecordsRevision(v=>v+1);
       }
       succeeded=true;
@@ -1276,6 +1296,7 @@ function App() {
     const applyMonth = (md, isNew=false) => {
       if(cancelled || activeMonthKeyRef.current !== loadingKey) return;
       if(md){
+        setIncome(resolveMonthIncome(md));
         setFixed(md.fixedExpenses || DEFAULT_FIXED);
         setDaily(md.daily || {});
         setPaid(md.paid || {});
@@ -1390,7 +1411,9 @@ function App() {
       // this is a genuinely new month, so copy the previous month's fixed list.
       const prevFixed = getPrevFixed(year, month);
       const copiedFixed = prevFixed.map(e => ({ ...e }));
-      const fresh={fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:3,_updatedAt:Date.now()};
+      const copiedIncome = getPrevIncome(year, month);
+      const fresh={income:copiedIncome,fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:3,_updatedAt:Date.now()};
+      setIncome(copiedIncome);
       setFixed(copiedFixed);
       setDaily({});
       setPaid({});
@@ -1429,7 +1452,7 @@ function App() {
     syncTimerRef.current=setTimeout(()=>syncNow(endpoint,true),800);
   };
 
-  const saveMonth = (fixed, daily, paid, savingsList, budgetSnapshots, targetKey=monthKey, syncCloud=true) => {
+  const saveMonth = (fixed, daily, paid, savingsList, budgetSnapshots, targetKey=monthKey, syncCloud=true, incomeValue=income) => {
     // Ref check blocks callbacks from a previous month from saving into the newly selected month.
     if(targetKey !== activeMonthKeyRef.current) return false;
     if(!monthDataReady || hydratedMonthKey !== targetKey) return false;
@@ -1447,6 +1470,7 @@ function App() {
     );
 
     const data={
+      income: resolveMonthIncome({income:incomeValue},0),
       fixedExpenses: fixedList,
       daily: daily ?? dailyEntries,
       paid:  paidClean,
@@ -1499,7 +1523,8 @@ function App() {
   };
 
   const saveConfig = (inc, goal) => {
-    const data={income:inc??income,savingGoal:goal??savingGoal,monthlyBudget:monthlyBudget,_updatedAt:Date.now()};
+    const previous=lsGet("raijai_config")||{};
+    const data={...previous,income:inc??previous.income??income,savingGoal:goal??savingGoal,monthlyBudget:monthlyBudget,_updatedAt:Date.now()};
     if(!lsSet("raijai_config",data)) return false; queueCloudSave("raijai_config",data); return true;
   };
 
@@ -1679,7 +1704,9 @@ function App() {
   const togglePaid = id=>{ if(!monthDataReady || hydratedMonthKey!==monthKey) return false; const upd={...paidFixed,[id]:!paidFixed[id]}; setPaid(upd); saveMonth(null,null,upd); };
   const saveIncome = v=>{
     if(amountError(v,false)) return false;
-    const n=Number(v);if(!saveConfig(n,null))return false;setIncome(n);return true;
+    const n=Number(v);
+    if(!saveMonth(null,null,null,null,null,monthKey,true,n))return false;
+    setIncome(n);return true;
   };
   const saveGoal = v=>{
     if(amountError(v))return false;
@@ -1687,7 +1714,8 @@ function App() {
   };
   const saveBudget = v=>{
     if(amountError(v))return false;
-    const n=Number(v),data={income,savingGoal,monthlyBudget:n,_updatedAt:Date.now()};
+    const n=Number(v),previous=lsGet("raijai_config")||{};
+    const data={...previous,income:previous.income??income,savingGoal,monthlyBudget:n,_updatedAt:Date.now()};
     if(!lsSet("raijai_config",data))return false;
     queueCloudSave("raijai_config",data);setMonthlyBudget(n);return true;
   };
@@ -1750,12 +1778,13 @@ function App() {
     const varExp=Object.values(d.daily||{}).flat().reduce((s,it)=>s+Number(it.amount||0),0);
     const savings=(d.savingItems||[]).reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
     const total=fx+varExp;
-    const remaining=income-savings-total;
-    return {month:i+1,fx,varExp,savings,total,remaining,hasData:varExp>0||fx>0||savings>0};
+    const monthIncome=resolveMonthIncome(d);
+    const remaining=monthIncome-savings-total;
+    return {month:i+1,income:monthIncome,fx,varExp,savings,total,remaining,hasData:varExp>0||fx>0||savings>0};
   });
   const activeMonths = ovStats.filter(m=>m.hasData);
   const ovTotalExp = activeMonths.reduce((s,m)=>s+m.total,0);
-  const ovTotalInc = activeMonths.length*income;
+  const ovTotalInc = activeMonths.reduce((sum,m)=>sum+m.income,0);
   const ovTotalSav = activeMonths.reduce((s,m)=>s+m.savings,0);
   const ovTotalRemaining = activeMonths.reduce((s,m)=>s+m.remaining,0);
 
@@ -1828,7 +1857,7 @@ function App() {
             <button className="month-btn" onClick={nextMonth}>›</button>
           </div>
           <div className="income-row">
-            เงินเดือน:&nbsp;
+            รายรับเดือนนี้:&nbsp;
             <Editable value={income} allowZero={false} onSave={saveIncome} prefix="฿" style={{color:"rgba(255,255,255,0.9)",fontSize:13,fontWeight:600}}/>
             <span style={{fontSize:11,opacity:.45,marginLeft:4}}>(แตะแก้ไข)</span>
           </div>
@@ -2052,6 +2081,7 @@ function App() {
               <span style={{fontSize:14,fontWeight:700,color:"#1B4332"}}>💰 ภาพรวมการใช้เงินรายเดือน</span>
               <span style={{fontSize:12,color:"#6B7280"}}>กดเดือนเพื่อดูรายละเอียด</span>
             </div>
+            <div style={{fontSize:11,color:"#6B7280",marginBottom:8}}>ยอดเหลือใช้รายรับของแต่ละเดือน ไม่ใช้รายรับเดือนปัจจุบันแทนทุกเดือน</div>
             <div className="list-box" style={{boxShadow:"none",border:"1px solid #F3F4F6"}}>
               <table className="month-table">
                 <thead><tr><th>เดือน</th><th style={{textAlign:"right"}}>ประจำ</th><th style={{textAlign:"right"}}>รายวัน</th><th style={{textAlign:"right"}}>รวม</th><th style={{textAlign:"right"}}>เหลือ</th></tr></thead>
