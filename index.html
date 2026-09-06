@@ -843,6 +843,47 @@ input[type="checkbox"]:focus-visible{
 .di-category{max-width:130px;min-height:44px;border:0;background:transparent;font:inherit;font-size:11px;color:#667085;padding:0;}
 .di-note{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#667085;}
 .day-item-actions{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
+
+/* Overview — decision-first hierarchy. */
+.ui-line-icon{display:block;width:18px;height:18px;flex:0 0 18px;}
+.ov-title-row,.overview-section-title,.data-tools-summary{display:flex;align-items:center;gap:7px;}
+.overview-primary .ui-line-icon{color:#B7E4C7;}
+.overview-empty-icon .ui-line-icon{width:30px;height:30px;margin:0 auto;color:#40916C;}
+.overview-kpi{min-height:104px;}
+.overview-expense-detail{display:flex;gap:10px;flex-wrap:wrap;margin-top:7px;font-size:11px;color:#667085;}
+.overview-insights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.overview-insight{min-width:0;padding:12px 14px;border:1px solid #E5ECE7;border-radius:12px;background:#F8FAF9;}
+.overview-insight-label{display:flex;align-items:center;gap:6px;font-size:12px;color:#667085;margin-bottom:4px;}
+.overview-insight-value{font-size:16px;font-weight:700;color:#1B4332;font-variant-numeric:tabular-nums;}
+.overview-insight-sub{font-size:11px;color:#667085;margin-top:2px;}
+.overview-current-year{margin-top:9px;min-height:36px;padding:6px 12px;border:1px solid rgba(255,255,255,.35);border-radius:9px;background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:12px;font-weight:600;}
+.overview-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}
+.overview-section-title{font-size:15px;font-weight:700;color:#1B4332;}
+.overview-section-hint{font-size:12px;color:#667085;}
+.category-tabs{display:flex;gap:6px;margin-bottom:10px;padding:4px;border-radius:12px;background:#E9EFEB;}
+.category-tab{flex:1;min-height:40px;border:0;border-radius:9px;background:transparent;color:#667085;font:inherit;font-size:12px;font-weight:600;}
+.category-tab.active{background:#fff;color:#1B4332;box-shadow:0 1px 4px rgba(15,23,42,.08);}
+.category-breakdown{padding:4px 14px;background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
+.category-row{padding:11px 0;border-bottom:1px solid #EDF1EE;}
+.category-row:last-child{border-bottom:0;}
+.category-row-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:7px;}
+.category-name{min-width:0;font-size:13px;font-weight:600;color:#34443B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.category-value{font-size:13px;font-weight:700;color:#1B4332;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.category-percent{font-size:11px;font-weight:500;color:#667085;margin-left:4px;}
+.category-track{height:6px;border-radius:99px;background:#E8EEE9;overflow:hidden;}
+.category-fill{height:100%;border-radius:99px;background:#40916C;}
+.overview-more-btn{width:100%;min-height:44px;margin-top:10px;border:1px solid #CFE0D5;border-radius:10px;background:#fff;color:#1B4332;font:inherit;font-size:13px;font-weight:700;}
+.data-tools{margin:18px 16px 0;border:1px solid #DCE5DF;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.04);}
+.data-tools-summary{min-height:48px;padding:10px 14px;color:#1B4332;font-size:13px;font-weight:700;cursor:pointer;list-style:none;}
+.data-tools-summary::-webkit-details-marker{display:none;}
+.data-tools-summary::after{content:'›';margin-left:auto;font-size:20px;color:#667085;transition:transform .18s ease;}
+.data-tools[open] .data-tools-summary::after{transform:rotate(90deg);}
+.data-tools .sync-panel{margin:0;border:0;border-top:1px solid #EDF1EE;border-radius:0;box-shadow:none;}
+.data-tools .backup-row{margin:0;padding:0 16px 16px;}
+@media(min-width:769px){
+  .data-tools{margin-left:36px;margin-right:36px;}
+  .ov-cards.overview-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
+}
 @media(max-width:600px){
   .two-col-fixed > .fixed-expense-card{padding:10px !important;gap:8px !important;}
   .fixed-check-wrap{width:44px;height:44px;flex-basis:44px;}
@@ -850,6 +891,15 @@ input[type="checkbox"]:focus-visible{
   .day-header{padding:10px 12px;gap:8px;}
   .day-items-wrap{padding-left:44px;padding-right:8px;}
   .day-item-actions{gap:2px;}
+  .overview-kpi{min-height:96px;}
+  .overview-savings{grid-column:1/-1;}
+  .overview-insights{grid-template-columns:1fr;gap:8px;}
+  .month-table .mobile-optional{display:none;}
+  .month-table th:first-child,.month-table td:first-child{width:24%;}
+  .month-table th.mobile-primary,.month-table td.mobile-primary{width:38%;}
+  .category-tabs{gap:4px;}
+  .category-tab{font-size:11px;}
+  .data-tools{margin-left:10px;margin-right:10px;}
 }
 </style>
 </head>
@@ -1022,6 +1072,21 @@ function MainNav({tab,onChange}) {
   );
 }
 
+function LineIcon({name,className="ui-line-icon"}) {
+  const shapes={
+    balance:<><path d="M4 7h16v12H4z"/><path d="M4 10h16M16 14h2"/></>,
+    income:<><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 21h14"/></>,
+    expense:<><path d="M12 21V9M7 16l5 5 5-5"/><path d="M5 3h14"/></>,
+    savings:<><path d="M5 9a7 7 0 0 1 14 0v8H5z"/><path d="M8 9h8M9 17v3M15 17v3M19 12h2"/></>,
+    insight:<><path d="M4 19V10M10 19V5M16 19v-7M2 19h20"/></>,
+    table:<><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></>,
+    category:<><path d="M20 13l-7 7-10-10V3h7z"/><circle cx="7.5" cy="7.5" r="1"/></>,
+    list:<><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></>,
+    cloud:<><path d="M7 18h11a4 4 0 0 0 .5-8A6 6 0 0 0 7 8.5 4.5 4.5 0 0 0 7 18z"/></>,
+  };
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{shapes[name]}</svg>;
+}
+
 
 function App() {
   const now = new Date();
@@ -1054,6 +1119,8 @@ function App() {
   const [modalTab, setModalTab] = useState("daily");
   const dailyNameRef = useRef(null);
   const [ovYear,   setOvYear]   = useState(now.getFullYear());
+  const [categoryView,setCategoryView] = useState("all");
+  const [showAllAnnualFixed,setShowAllAnnualFixed] = useState(false);
   const [allMonthData, setAllMonthData] = useState({});
   const [syncUrl, setSyncUrl] = useState(()=>localStorage.getItem("raijai_sync_url")||"");
   const [syncStatus, setSyncStatus] = useState("");
@@ -1932,6 +1999,13 @@ function App() {
     Object.values(d.daily||{}).flat().forEach(it=>{ const c=it.category||"📦 อื่น ๆ"; categoryTotals[c]=(categoryTotals[c]||0)+Number(it.amount||0); });
   });
   const annualCategories = Object.entries(categoryTotals).sort((a,b)=>b[1]-a[1]);
+  const combinedCategoryTotals={};
+  [...annualCategories,...annualFixedCategories].forEach(([category,total])=>{
+    combinedCategoryTotals[category]=(combinedCategoryTotals[category]||0)+total;
+  });
+  const annualAllCategories=Object.entries(combinedCategoryTotals).sort((a,b)=>b[1]-a[1]);
+  const displayedCategories=categoryView==="daily"?annualCategories:categoryView==="fixed"?annualFixedCategories:annualAllCategories;
+  const displayedCategoryTotal=displayedCategories.reduce((sum,[,total])=>sum+total,0);
   const currentMonthItems = Object.values(dailyEntries).flat();
   const matchesFilter = it=>{ const q=searchTerm.trim().toLowerCase(); return (!q || String(it.name||"").toLowerCase().includes(q) || String(it.note||"").toLowerCase().includes(q)) && (!filterCategory || (it.category||"📦 อื่น ๆ")===filterCategory); };
   const filteredItems = currentMonthItems.filter(matchesFilter);
@@ -2143,69 +2217,61 @@ function App() {
             <button className="month-btn" aria-label="ปีถัดไป" onClick={()=>setOvYear(y=>y+1)}>›</button>
           </div>
           <div style={{color:"#B7E4C7",fontSize:13}}>{activeMonths.length>0?`มีข้อมูล ${activeMonths.length} เดือน`:"ยังไม่มีข้อมูล"}</div>
+          {ovYear!==now.getFullYear()&&<button type="button" className="overview-current-year" onClick={()=>setOvYear(now.getFullYear())}>กลับปีปัจจุบัน</button>}
         </div>
 
         {activeMonths.length ? <>
-        <div className="ov-cards">
+        <div className="ov-cards overview-summary-grid">
           <div className="ov-card overview-primary">
-            <div className="ov-clabel">เงินคงเหลือรวมปี</div>
+            <div className="ov-clabel ov-title-row"><LineIcon name="balance"/>เงินคงเหลือรวมปี</div>
             <div className={`ov-camt ${ovTotalRemaining<0?"danger":"success"}`}>{ovTotalRemaining<0?"−":""}฿{fmt(Math.abs(ovTotalRemaining))}</div>
             <div className="ov-csub">รายรับ − เงินออม − รายจ่าย</div>
           </div>
-          <div className="ov-card">
-            <div className="ov-clabel">💰 รายรับรวมปี {ovYear}</div>
+          <div className="ov-card overview-kpi">
+            <div className="ov-clabel ov-title-row"><LineIcon name="income"/>รายรับรวมปี</div>
             <div className="ov-camt">฿{fmt(ovTotalInc)}</div>
-            <div className="ov-csub">รวมเฉพาะเดือนที่มีข้อมูลจริง</div>
-          </div>
-          <div className="ov-card">
-            <div className="ov-clabel">💸 รายจ่ายรวมปี {ovYear}</div>
-            <div className="ov-camt">฿{fmt(ovTotalExp)}</div>
             <div className="ov-csub">จากข้อมูล {activeMonths.length} เดือน</div>
           </div>
-          <div className="ov-card">
-            <div className="ov-clabel">🏦 เงินออมรวมปี {ovYear}</div>
+          <div className="ov-card overview-kpi">
+            <div className="ov-clabel ov-title-row"><LineIcon name="expense"/>รายจ่ายรวมปี</div>
+            <div className="ov-camt">฿{fmt(ovTotalExp)}</div>
+            <div className="overview-expense-detail"><span>ประจำ ฿{fmt(annualFixedTotal)}</span><span>รายวัน ฿{fmt(annualVarTotal)}</span></div>
+          </div>
+          <div className="ov-card overview-kpi overview-savings">
+            <div className="ov-clabel ov-title-row"><LineIcon name="savings"/>เงินออมรวมปี</div>
             <div className="ov-camt success">฿{fmt(ovTotalSav)}</div>
-            <div className="ov-csub">รวมรายการออมของแต่ละเดือน</div>
-          </div>
-          <div className="ov-card">
-            <div className="ov-clabel">📊 เฉลี่ยรายจ่าย / เดือน</div>
-            <div className="ov-camt">฿{activeMonths.length?fmt(ovTotalExp/activeMonths.length):"0.00"}</div>
-            <div className="ov-csub">เฉพาะเดือนที่มีข้อมูล</div>
-          </div>
-          <div className="ov-card">
-            <div className="ov-clabel">🏠 รายจ่ายประจำรวมปี</div>
-            <div className="ov-camt">฿{fmt(annualFixedTotal)}</div>
-            <div className="ov-csub">รายจ่ายประจำจริงของแต่ละเดือน</div>
-          </div>
-          <div className="ov-card">
-            <div className="ov-clabel">🛒 รายจ่ายรายวันรวมปี</div>
-            <div className="ov-camt">฿{fmt(annualVarTotal)}</div>
-            <div className="ov-csub">ค่าใช้จ่ายที่บันทึกรายวัน</div>
+            <div className="ov-csub">รวมเงินออมของแต่ละเดือน</div>
           </div>
           <div className="ov-card full">
-            <div className="ov-clabel">🔥 เดือนที่ใช้เงินสูงสุด</div>
-            {highestMonth ? <>
-              <div className="ov-camt">{MONTH_FULL[highestMonth.month-1]} {ovYear} · ฿{fmt(highestMonth.total)}</div>
-              <div className="ov-csub">รายจ่ายประจำ ฿{fmt(highestMonth.fx)} + รายจ่ายรายวัน ฿{fmt(highestMonth.varExp)}</div>
-            </> : <div className="ov-csub">ยังไม่มีข้อมูล</div>}
-          </div>
-          <div className="ov-card full">
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <span style={{fontSize:14,fontWeight:700,color:"#1B4332"}}>💰 ภาพรวมการใช้เงินรายเดือน</span>
-              <span style={{fontSize:12,color:"#6B7280"}}>กดเดือนเพื่อดูรายละเอียด</span>
+            <div className="overview-insights">
+              <div className="overview-insight">
+                <div className="overview-insight-label"><LineIcon name="insight"/>เดือนที่ใช้เงินสูงสุด</div>
+                <div className="overview-insight-value">{highestMonth?`${MONTH_FULL[highestMonth.month-1]} · ฿${fmt(highestMonth.total)}`:"ยังไม่มีรายจ่าย"}</div>
+                {highestMonth&&<div className="overview-insight-sub">ประจำ ฿{fmt(highestMonth.fx)} · รายวัน ฿{fmt(highestMonth.varExp)}</div>}
+              </div>
+              <div className="overview-insight">
+                <div className="overview-insight-label"><LineIcon name="insight"/>รายจ่ายเฉลี่ยต่อเดือน</div>
+                <div className="overview-insight-value">฿{fmt(ovTotalExp/activeMonths.length)}</div>
+                <div className="overview-insight-sub">เฉพาะ {activeMonths.length} เดือนที่มีข้อมูล</div>
+              </div>
             </div>
-            <div style={{fontSize:11,color:"#6B7280",marginBottom:8}}>ยอดเหลือใช้รายรับของแต่ละเดือน ไม่ใช้รายรับเดือนปัจจุบันแทนทุกเดือน</div>
+          </div>
+          <div className="ov-card full">
+            <div className="overview-section-head">
+              <span className="overview-section-title"><LineIcon name="table"/>สรุปรายเดือน</span>
+              <span className="overview-section-hint">กดเดือนเพื่อดูรายละเอียด</span>
+            </div>
             <div className="list-box" style={{boxShadow:"none",border:"1px solid #F3F4F6"}}>
               <table className="month-table">
-                <thead><tr><th>เดือน</th><th style={{textAlign:"right"}}>ประจำ</th><th style={{textAlign:"right"}}>รายวัน</th><th style={{textAlign:"right"}}>รวม</th><th style={{textAlign:"right"}}>เหลือ</th></tr></thead>
+                <thead><tr><th>เดือน</th><th className="mobile-optional" style={{textAlign:"right"}}>รายรับ</th><th className="mobile-primary" style={{textAlign:"right"}}>รายจ่าย</th><th className="mobile-optional" style={{textAlign:"right"}}>ออม</th><th className="mobile-primary" style={{textAlign:"right"}}>คงเหลือ</th></tr></thead>
                 <tbody>
                   {ovStats.filter(m=>m.hasData).map(ms=>(
                     <tr key={ms.month} onClick={()=>{setMonth(ms.month);setYear(ovYear);setTab("month");}}>
                       <td><button type="button" className={`mbadge${ms.month===month&&ovYear===year?" active":""}`} aria-label={`ดูรายละเอียด ${MONTH_FULL[ms.month-1]} ${ovYear}`} onClick={e=>{e.stopPropagation();setMonth(ms.month);setYear(ovYear);setTab("month");}}>{MONTH_SHORT[ms.month-1]}</button></td>
-                      <td className="num">฿{fmt(ms.fx)}</td>
-                      <td className="num">฿{fmt(ms.varExp)}</td>
-                      <td className="num">฿{fmt(ms.total)}</td>
-                      <td className={`num${ms.remaining<0?" neg":" pos"}`}>{ms.remaining>=0?"+":""}฿{fmt(ms.remaining)}</td>
+                      <td className="num mobile-optional">฿{fmt(ms.income)}</td>
+                      <td className="num mobile-primary">฿{fmt(ms.total)}</td>
+                      <td className="num mobile-optional">฿{fmt(ms.savings)}</td>
+                      <td className={`num mobile-primary${ms.remaining<0?" neg":" pos"}`}>{ms.remaining>=0?"+":""}฿{fmt(ms.remaining)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2215,35 +2281,29 @@ function App() {
         </div>
 
         <div className="section" style={{marginTop:16}}>
-          <div className="section-header"><span className="section-title">🏷️ รายจ่ายรายวันแยกตามหมวดหมู่</span><span style={{fontSize:12,color:"#6B7280"}}>ทั้งปี</span></div>
-          <div className="list-box two-col-category">{annualCategories.length?annualCategories.map(([c,v])=><div className="fixed-item" key={c}><span className="fx-name">{c}</span><span className="fx-amt">฿{fmt(v)}</span></div>):<div className="empty-box">ยังไม่มีข้อมูลหมวดหมู่</div>}</div>
+          <div className="overview-section-head"><span className="overview-section-title"><LineIcon name="category"/>รายจ่ายตามหมวดหมู่</span><span className="overview-section-hint">ทั้งปี</span></div>
+          <div className="category-tabs" role="tablist" aria-label="ประเภทรายจ่ายตามหมวดหมู่">
+            {[['all','ทั้งหมด'],['daily','รายวัน'],['fixed','ประจำ']].map(([value,label])=><button type="button" role="tab" aria-selected={categoryView===value} className={`category-tab${categoryView===value?" active":""}`} key={value} onClick={()=>setCategoryView(value)}>{label}</button>)}
+          </div>
+          <div className="category-breakdown">
+            {displayedCategories.length?displayedCategories.map(([category,total])=>{
+              const percent=displayedCategoryTotal>0?total/displayedCategoryTotal*100:0;
+              return <div className="category-row" key={category}>
+                <div className="category-row-top"><span className="category-name">{category}</span><span className="category-value">฿{fmt(total)} <span className="category-percent">{percent.toFixed(0)}%</span></span></div>
+                <div className="category-track" aria-hidden="true"><div className="category-fill" style={{width:`${percent}%`}}/></div>
+              </div>;
+            }):<div className="empty-box">ยังไม่มีข้อมูลหมวดหมู่ประเภทนี้</div>}
+          </div>
         </div>
 
         <div className="section" style={{marginTop:16}}>
-  <div className="section-header">
-    <span className="section-title">🏷️ รายจ่ายประจำแยกตามหมวดหมู่</span>
-    <span style={{fontSize:12,color:"#6B7280"}}>ทั้งปี</span>
-  </div>
-  <div className="list-box two-col-category">
-    {annualFixedCategories.length ? annualFixedCategories.map(([c,v])=>
-      <div className="fixed-item" key={c}>
-        <span className="fx-name">{c}</span>
-        <span className="fx-amt">฿{fmt(v)}</span>
-      </div>
-    ) : <div className="empty">ยังไม่มีข้อมูลรายจ่ายประจำ</div>}
-  </div>
-</div>
-<div className="section" style={{marginTop:16}}>
-          <div className="section-header">
-            <span className="section-title">📋 รายจ่ายประจำแยกตามรายการ</span>
-            <span style={{fontSize:14,fontWeight:700,color:"#1B4332"}}>฿{fmt(annualFixedTotal)} / ปี</span>
+          <div className="overview-section-head">
+            <span className="overview-section-title"><LineIcon name="list"/>รายจ่ายประจำตามรายการ</span>
+            <span className="overview-section-hint">฿{fmt(annualFixedTotal)} / ปี</span>
           </div>
           <div className="list-box two-col-fixed">
             {annualFixedItems.length>0 ? <>
-              <div style={{padding:"10px 14px",background:"#F0FDF4",borderBottom:"1px solid #D1FAE5",fontSize:12,color:"#6B7280"}}>
-                รวมยอดจากแต่ละเดือนจริง — ถ้าบางเดือนไม่มีรายการ จะไม่นับเดือนนั้น
-              </div>
-              {annualFixedItems.map((e,i)=>(
+              {(showAllAnnualFixed?annualFixedItems:annualFixedItems.slice(0,5)).map((e,i)=>(
                 <div className="fixed-item annual-fixed-card" key={i}>
                   <div className="annual-fixed-top">
                     <span className="fx-name">{e.name}</span>
@@ -2261,32 +2321,35 @@ function App() {
               </div>
             </> : <div className="empty-box">ยังไม่มีรายจ่ายประจำในปี {ovYear}</div>}
           </div>
+          {annualFixedItems.length>5&&<button type="button" className="overview-more-btn" aria-expanded={showAllAnnualFixed} onClick={()=>setShowAllAnnualFixed(v=>!v)}>{showAllAnnualFixed?"ย่อรายการ":`ดูทั้งหมด ${annualFixedItems.length} รายการ`}</button>}
         </div>
 
         </> : <div className="overview-empty" role="status">
-          <div className="overview-empty-icon" aria-hidden="true">📝</div>
+          <div className="overview-empty-icon"><LineIcon name="table"/></div>
           <div className="overview-empty-title">ยังไม่มีข้อมูลในปี {ovYear}</div>
           <div className="overview-empty-desc">เริ่มบันทึกรายการแรก แล้วระบบจะสรุปรายรับ รายจ่าย และเงินคงเหลือให้อัตโนมัติ</div>
           <button className="overview-empty-action" onClick={()=>{setYear(ovYear);setTab("month");}}>ไปเพิ่มรายการ</button>
         </div>}
       </>)}
 
-      <div className="sync-panel">
-        <div className="sync-title">☁️ Google Sync — ใช้ข้อมูลเดียวกันบน PC และมือถือ</div>
-        <div className="sync-desc">วาง URL ของ Google Apps Script Web App (ลงท้าย /exec) ครั้งเดียวต่ออุปกรณ์ หลังจากนั้นการแก้ข้อมูลจะอัปขึ้นคลาวด์อัตโนมัติ</div>
-        <div className="sync-row">
-          <input className="sync-input" type="url" inputMode="url" autoComplete="url" aria-label="URL สำหรับ Google Sync" value={syncUrl} onChange={e=>setSyncUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/>
-          <button className="backup-btn" style={{flex:"0 0 auto"}} onClick={saveSyncUrl}>บันทึก URL</button>
-          <button className="backup-btn" style={{flex:"0 0 auto"}} disabled={syncBusy} onClick={()=>syncNow()}>{syncBusy?"กำลังซิงก์…":"🔄 ซิงก์ตอนนี้"}</button>
+      <details className="data-tools">
+        <summary className="data-tools-summary"><LineIcon name="cloud"/>ข้อมูลและการสำรอง</summary>
+        <div className="sync-panel">
+          <div className="sync-title">Google Sync — ใช้ข้อมูลเดียวกันบน PC และมือถือ</div>
+          <div className="sync-desc">วาง URL ของ Google Apps Script Web App (ลงท้าย /exec) ครั้งเดียวต่ออุปกรณ์ หลังจากนั้นการแก้ข้อมูลจะอัปขึ้นคลาวด์อัตโนมัติ</div>
+          <div className="sync-row">
+            <input className="sync-input" type="url" inputMode="url" autoComplete="url" aria-label="URL สำหรับ Google Sync" value={syncUrl} onChange={e=>setSyncUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/>
+            <button className="backup-btn" style={{flex:"0 0 auto"}} onClick={saveSyncUrl}>บันทึก URL</button>
+            <button className="backup-btn" style={{flex:"0 0 auto"}} disabled={syncBusy} onClick={()=>syncNow()}>{syncBusy?"กำลังซิงก์…":"ซิงก์ตอนนี้"}</button>
+          </div>
+          {syncStatus&&<div className={`sync-status${syncStatus.startsWith("✅")?" ok":syncStatus.startsWith("❌")?" err":""}`}>{syncStatus}</div>}
         </div>
-        {syncStatus&&<div className={`sync-status${syncStatus.startsWith("✅")?" ok":syncStatus.startsWith("❌")?" err":""}`}>{syncStatus}</div>}
-      </div>
-
-      <div className="backup-row">
-        {lsGet("raijai_before_import_v1") && <button className="backup-btn" onClick={exportBeforeImport}>⬇️ สำเนาก่อนนำเข้าครั้งล่าสุด</button>}
-        <button className="backup-btn" onClick={exportBackup}>⬇️ Export / สำรองข้อมูล</button>
-        <label className="backup-btn" style={{textAlign:"center"}}>⬆️ Import / กู้คืนข้อมูล<input type="file" accept="application/json,.json" style={{display:"none"}} onChange={e=>{importBackup(e.target.files[0]);e.target.value="";}}/></label>
-      </div>
+        <div className="backup-row">
+          {lsGet("raijai_before_import_v1") && <button className="backup-btn" onClick={exportBeforeImport}>สำเนาก่อนนำเข้าครั้งล่าสุด</button>}
+          <button className="backup-btn" onClick={exportBackup}>Export / สำรองข้อมูล</button>
+          <label className="backup-btn" style={{textAlign:"center"}}>Import / กู้คืนข้อมูล<input type="file" accept="application/json,.json" style={{display:"none"}} onChange={e=>{importBackup(e.target.files[0]);e.target.value="";}}/></label>
+        </div>
+      </details>
 
     </div>
 
