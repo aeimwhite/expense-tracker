@@ -1419,7 +1419,8 @@ function App() {
     const res={};
     for(let m=1;m<=12;m++){
       const k=mk(ovYear,m);
-      res[k]=lsGet(k)||{fixedExpenses:[],daily:{},paid:{}};
+      const stored=lsGet(k);
+      if(stored && typeof stored==="object") res[k]=stored;
     }
     setAllMonthData(res);
   },[tab,ovYear,syncReady,recordsRevision]);
@@ -1798,14 +1799,17 @@ function App() {
 
   const ovStats = Array.from({length:12},(_,i)=>{
     const k=mk(ovYear,i+1);
-    const d=allMonthData[k]||{fixedExpenses:[],daily:{},savingItems:[],paid:{}};
+    const record=allMonthData[k];
+    const d=record||{fixedExpenses:[],daily:{},savingItems:[],paid:{}};
     const fx=sumPaidFixed(d);
     const varExp=Object.values(d.daily||{}).flat().reduce((s,it)=>s+Number(it.amount||0),0);
     const savings=(d.savingItems||[]).reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
     const total=fx+varExp;
     const monthIncome=resolveMonthIncome(d);
     const remaining=monthIncome-savings-total;
-    return {month:i+1,income:monthIncome,fx,varExp,savings,total,remaining,hasData:varExp>0||fx>0||savings>0};
+    const hasExplicitIncome=!!record && isValidIncome(record.income) && Number(record.income)>0;
+    const hasActivity=fx>0||varExp>0||savings>0;
+    return {month:i+1,income:monthIncome,fx,varExp,savings,total,remaining,hasData:!!record&&(hasExplicitIncome||hasActivity)};
   });
   const activeMonths = ovStats.filter(m=>m.hasData);
   const ovTotalExp = activeMonths.reduce((s,m)=>s+m.total,0);
@@ -1840,7 +1844,8 @@ function App() {
   },{})).sort((a,b)=>b[1]-a[1]);
   const annualFixedItems = Object.values(annualFixedByItem).sort((a,b)=>b.total-a.total);
 
-  const highestMonth = activeMonths.length ? activeMonths.reduce((a,b)=>b.total>a.total?b:a) : null;
+  const spendingMonths = activeMonths.filter(m=>m.total>0);
+  const highestMonth = spendingMonths.length ? spendingMonths.reduce((a,b)=>b.total>a.total?b:a) : null;
   const annualVarTotal = ovStats.reduce((sum,m)=>sum+m.varExp,0);
   const categoryTotals = {};
   activeMonths.forEach(ms=>{
@@ -2060,9 +2065,24 @@ function App() {
 
         <div className="ov-cards">
           <div className="ov-card">
+            <div className="ov-clabel">💰 รายรับรวมปี {ovYear}</div>
+            <div className="ov-camt">฿{fmt(ovTotalInc)}</div>
+            <div className="ov-csub">รวมเฉพาะเดือนที่มีข้อมูลจริง</div>
+          </div>
+          <div className="ov-card">
             <div className="ov-clabel">💸 รายจ่ายรวมปี {ovYear}</div>
             <div className="ov-camt">฿{fmt(ovTotalExp)}</div>
             <div className="ov-csub">จากข้อมูล {activeMonths.length} เดือน</div>
+          </div>
+          <div className="ov-card">
+            <div className="ov-clabel">🏦 เงินออมรวมปี {ovYear}</div>
+            <div className="ov-camt success">฿{fmt(ovTotalSav)}</div>
+            <div className="ov-csub">รวมรายการออมของแต่ละเดือน</div>
+          </div>
+          <div className="ov-card">
+            <div className="ov-clabel">💵 เงินคงเหลือรวมปี</div>
+            <div className={`ov-camt ${ovTotalRemaining<0?"danger":"success"}`}>{ovTotalRemaining<0?"−":""}฿{fmt(Math.abs(ovTotalRemaining))}</div>
+            <div className="ov-csub">รายรับ − เงินออม − รายจ่าย</div>
           </div>
           <div className="ov-card">
             <div className="ov-clabel">📊 เฉลี่ยรายจ่าย / เดือน</div>
