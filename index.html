@@ -451,7 +451,7 @@ nav.bottom-nav button,.bottom-nav button{
 .form-input[aria-invalid="true"]{border-color:#B42318;}
 .app{max-width:480px;margin:0 auto;min-height:100vh;background:#EEF2EE;padding-bottom:28px;}
 @media (min-width:769px){
-  body{margin:0;padding:24px 100px 36px 24px;background:#E9EEEA;overflow-x:hidden;}
+  body{margin:0;padding:24px 40px 36px;background:#E9EEEA;overflow-x:hidden;}
   #root{min-height:calc(100vh - 60px);}
   .app{max-width:1180px !important;min-height:calc(100vh - 60px);margin:0 auto !important;background:#F7F9F7;border-radius:18px;box-shadow:0 8px 32px rgba(0,0,0,.08);overflow:hidden;padding-bottom:32px;}
   .main-nav{justify-content:flex-end;}
@@ -462,22 +462,18 @@ nav.bottom-nav button,.bottom-nav button{
   .month-table{width:100%;table-layout:fixed;}
   .modal{width:min(760px,calc(100vw - 220px)) !important;max-height:88vh !important;}
 }
-@media (min-width:1500px){body{padding-left:40px;padding-right:110px;}.app{max-width:1280px !important;}.section{margin-left:44px !important;margin-right:44px !important;}.ov-header,.ov-cards,.backup-row{padding-left:44px !important;padding-right:44px !important;}}
+@media (min-width:1500px){body{padding-left:40px;padding-right:40px;}.app{max-width:1280px !important;}.section{margin-left:44px !important;margin-right:44px !important;}.ov-header,.ov-cards,.backup-row{padding-left:44px !important;padding-right:44px !important;}}
 .main-nav{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
-.nav-btn{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:none;border-radius:12px;background:transparent;cursor:pointer;color:#9CA3AF;position:relative;transition:.18s ease;}
+.nav-btn{min-width:48px;height:48px;padding:0 12px;display:flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:12px;background:transparent;cursor:pointer;color:#9CA3AF;position:relative;transition:.18s ease;}
 .nav-btn:hover{background:#F0FDF4;color:#1B4332;transform:translateY(-1px);}
 .nav-btn.active{background:#1B4332;color:#fff;box-shadow:0 4px 12px rgba(27,67,50,.22);}
 .nav-icon{font-size:22px;line-height:1;}
-.nav-label{position:absolute;right:58px;top:50%;transform:translateY(-50%);white-space:nowrap;background:#1F2937;color:#fff;font-size:12px;font-weight:600;font-family:'Sarabun',sans-serif;padding:6px 9px;border-radius:7px;opacity:0;pointer-events:none;transition:.15s ease;}
-.nav-btn:hover .nav-label{opacity:1;}
+.nav-label{position:static;transform:none;white-space:nowrap;background:transparent;color:inherit;font-size:12px;font-weight:600;font-family:'Sarabun',sans-serif;padding:0;opacity:1;pointer-events:none;}
 @media (max-width: 600px){
   .month-table th,.month-table td{padding-left:2px;padding-right:2px;}
   .month-table td.num{font-size:clamp(9px,2.7vw,12px);letter-spacing:-.35px;}
   .month-table th{font-size:clamp(8px,2.5vw,10px);}
   .mbadge{padding-left:5px;padding-right:5px;}
-}
-@media (max-width: 900px){
-  .nav-label{right:58px;}
 }
 .header{background:linear-gradient(135deg,#1B4332,#2D6A4F);padding:20px 20px 56px;}
 .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
@@ -536,6 +532,14 @@ nav.bottom-nav button,.bottom-nav button{
 .ov-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px;margin-top:-42px;}
 .ov-card{background:#fff;border-radius:16px;padding:14px 16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);}
 .ov-card.full{grid-column:1/-1;}
+.ov-card.overview-primary{grid-column:1/-1;background:#1B4332;color:#fff;}
+.overview-primary .ov-clabel,.overview-primary .ov-csub{color:#B7E4C7;}
+.overview-primary .ov-camt,.overview-primary .ov-camt.success,.overview-primary .ov-camt.danger{color:#fff;}
+.overview-empty{margin:-42px 16px 0;background:#fff;border-radius:16px;padding:34px 20px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.08);position:relative;}
+.overview-empty-icon{font-size:30px;line-height:1;margin-bottom:10px;}
+.overview-empty-title{font-size:17px;font-weight:700;color:#1B4332;margin-bottom:5px;}
+.overview-empty-desc{font-size:13px;color:#667085;line-height:1.6;margin-bottom:16px;}
+.overview-empty-action{border:0;border-radius:10px;background:#1B4332;color:#fff;padding:11px 18px;font:inherit;font-size:14px;font-weight:700;min-height:44px;}
 .ov-clabel{font-size:11px;color:#6B7280;margin-bottom:4px;}
 .ov-camt{font-size:21px;font-weight:700;color:#1B4332;}
 .ov-camt.danger{color:#DC2626;}.ov-camt.success{color:#059669;}
@@ -768,7 +772,7 @@ nav.bottom-nav button,.bottom-nav button{
 /* Minimal navigation — รายเดือน / ภาพรวม */
 .main-nav{gap:4px;}
 .nav-btn{
-  width:42px;height:38px;border-radius:10px;
+  width:auto;min-width:42px;height:38px;padding:0 10px;border-radius:10px;
   color:#98A2B3;background:transparent;
   box-shadow:none;transform:none;
 }
@@ -2076,7 +2080,13 @@ function App() {
           <div style={{color:"#B7E4C7",fontSize:13}}>{activeMonths.length>0?`มีข้อมูล ${activeMonths.length} เดือน`:"ยังไม่มีข้อมูล"}</div>
         </div>
 
+        {activeMonths.length ? <>
         <div className="ov-cards">
+          <div className="ov-card overview-primary">
+            <div className="ov-clabel">เงินคงเหลือรวมปี</div>
+            <div className={`ov-camt ${ovTotalRemaining<0?"danger":"success"}`}>{ovTotalRemaining<0?"−":""}฿{fmt(Math.abs(ovTotalRemaining))}</div>
+            <div className="ov-csub">รายรับ − เงินออม − รายจ่าย</div>
+          </div>
           <div className="ov-card">
             <div className="ov-clabel">💰 รายรับรวมปี {ovYear}</div>
             <div className="ov-camt">฿{fmt(ovTotalInc)}</div>
@@ -2091,11 +2101,6 @@ function App() {
             <div className="ov-clabel">🏦 เงินออมรวมปี {ovYear}</div>
             <div className="ov-camt success">฿{fmt(ovTotalSav)}</div>
             <div className="ov-csub">รวมรายการออมของแต่ละเดือน</div>
-          </div>
-          <div className="ov-card">
-            <div className="ov-clabel">💵 เงินคงเหลือรวมปี</div>
-            <div className={`ov-camt ${ovTotalRemaining<0?"danger":"success"}`}>{ovTotalRemaining<0?"−":""}฿{fmt(Math.abs(ovTotalRemaining))}</div>
-            <div className="ov-csub">รายรับ − เงินออม − รายจ่าย</div>
           </div>
           <div className="ov-card">
             <div className="ov-clabel">📊 เฉลี่ยรายจ่าย / เดือน</div>
@@ -2193,8 +2198,12 @@ function App() {
           </div>
         </div>
 
-        
-        {!activeMonths.length&&<div className="section" style={{marginTop:20}}><div className="list-box"><div className="empty-box">ยังไม่มีข้อมูลในปี {ovYear}<br/>เริ่มบันทึกในแท็บ "รายเดือน" ได้เลยครับ</div></div></div>}
+        </> : <div className="overview-empty" role="status">
+          <div className="overview-empty-icon" aria-hidden="true">📝</div>
+          <div className="overview-empty-title">ยังไม่มีข้อมูลในปี {ovYear}</div>
+          <div className="overview-empty-desc">เริ่มบันทึกรายการแรก แล้วระบบจะสรุปรายรับ รายจ่าย และเงินคงเหลือให้อัตโนมัติ</div>
+          <button className="overview-empty-action" onClick={()=>{setYear(ovYear);setTab("month");}}>ไปเพิ่มรายการ</button>
+        </div>}
       </>)}
 
       <div className="sync-panel">
