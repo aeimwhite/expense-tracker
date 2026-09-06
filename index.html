@@ -485,15 +485,8 @@ nav.bottom-nav button,.bottom-nav button{
 const { useState, useEffect, useRef, useCallback } = React;
 
 const DEFAULT_FIXED = [
-  { id:"rent",    name:"ค่าห้อง",       amount:3600 , category:"📦 อื่น ๆ", checked:false},
-  { id:"ais",     name:"AIS",           amount:2882.93 },
-  { id:"father",  name:"ให้พ่อ",         amount:500 },
-  { id:"spay",    name:"Spay เงินสด",   amount:725.22 },
-  { id:"spotify", name:"Spotify",       amount:149 },
-  { id:"ytpre",   name:"YT PRE",        amount:199 },
-  { id:"bb",      name:"BB",            amount:150 },
-  { id:"bbfont",  name:"BBFONT",        amount:25 },
-  { id:"rsb",     name:"RSB YT",        amount:200 },
+  { id:"example-rent",  name:"ค่าเช่า",       amount:3000, category:"🏠 ที่พัก", checked:false },
+  { id:"example-phone", name:"ค่าโทรศัพท์", amount:500,  category:"📱 โทรศัพท์/เน็ต", checked:false },
 ];
 const MONTH_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 const CATEGORIES = ["🍚 อาหาร","🏠 ที่พัก","🚗 เดินทาง","🛒 ช้อปปิ้ง","📱 โทรศัพท์/เน็ต","💳 หนี้/ผ่อน","🎮 บันเทิง","🏥 สุขภาพ","🎁 ของขวัญ","📦 อื่น ๆ"];
@@ -957,12 +950,12 @@ function App() {
   const [tab,   setTab]   = useState("month");
   const [year,  setYear]  = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth()+1);
-  const [income,     setIncome]     = useState(16925);
+  const [income,     setIncome]     = useState(0);
   const [savingItems, setSavingItems] = useState([]);
   const [dailyBudgetSnapshots, setDailyBudgetSnapshots] = useState({});
   const [dailyBudgetSnapshotVersion, setDailyBudgetSnapshotVersion] = useState(0);
-  const [savingGoal, setSavingGoal] = useState(3000); // เก็บไว้รองรับข้อมูลเก่า
-  const [monthlyBudget, setMonthlyBudget] = useState(13925);
+  const [savingGoal, setSavingGoal] = useState(0); // เก็บไว้รองรับข้อมูลเก่า
+  const [monthlyBudget, setMonthlyBudget] = useState(0);
   const [fixedExpenses, setFixed]   = useState([]);
   const [dailyEntries,  setDaily]   = useState({});
   const [paidFixed,     setPaid]    = useState({});
