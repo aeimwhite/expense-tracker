@@ -929,9 +929,22 @@ input[type="checkbox"]:focus-visible{
 .daily-secondary-btn,.daily-delete-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:8px 11px;border:1px solid #DCE5DF;border-radius:9px;background:#fff;color:#52635A;font:inherit;font-size:12px;font-weight:600;}
 .daily-delete-btn{border-color:#F3D2D2;background:#FFF1F1;color:#A13A3A;}
 .daily-secondary-btn:disabled{opacity:.45;cursor:not-allowed;}
+.reserved-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;padding:8px 11px;border:1px solid rgba(253,230,138,.32);border-radius:10px;background:rgba(146,64,14,.18);color:#FEF3C7;font-size:12px;}
+.reserved-summary strong{font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.daily-section-total{display:grid;justify-items:end;gap:1px;color:#667085;font-size:11px;}
+.daily-section-total strong{color:#1B4332;font-size:13px;font-variant-numeric:tabular-nums;}
+.payment-badge{display:inline-flex;align-items:center;min-height:22px;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;line-height:1.2;white-space:nowrap;}
+.payment-badge.reserved{background:#FFF3D6;color:#805500;}
+.payment-badge.unpaid{background:#EEF1F0;color:#52635A;}
+.daily-detail-fields{display:grid;grid-template-columns:repeat(2,minmax(140px,1fr));gap:8px;}
+.payment-status-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:4px;border-radius:12px;background:#E9EFEB;}
+.payment-status-option{min-height:44px;padding:7px 5px;border:0;border-radius:9px;background:transparent;color:#667085;font:inherit;font-size:12px;font-weight:600;}
+.payment-status-option.active{background:#fff;color:#1B4332;box-shadow:0 1px 4px rgba(15,23,42,.08);}
+.payment-status-help{margin-top:6px;color:#667085;font-size:11px;line-height:1.45;}
 .day-item{display:block !important;}
 @media(max-width:600px){
   .fixed-card-details,.daily-tools-panel,.daily-item-details{grid-template-columns:1fr;}
+  .daily-detail-fields{grid-template-columns:1fr;}
   .fixed-card-delete{width:100%;}
   .daily-toolbar{justify-content:space-between;}
   .daily-tool-btn{flex:1;padding-left:8px;padding-right:8px;}
@@ -951,6 +964,8 @@ const DEFAULT_FIXED = [
 ];
 const MONTH_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 const CATEGORIES = ["🍚 อาหาร","🏠 ที่พัก","🚗 เดินทาง","🛒 ช้อปปิ้ง","📱 โทรศัพท์/เน็ต","💳 หนี้/ผ่อน","🎮 บันเทิง","🏥 สุขภาพ","🎁 ของขวัญ","📦 อื่น ๆ"];
+const PAYMENT_STATUSES = ["paid","reserved","unpaid"];
+const PAYMENT_STATUS_LABELS = {paid:"จ่ายแล้ว",reserved:"กันเงินแล้ว",unpaid:"ยังไม่จ่าย"};
 const MONTH_FULL  = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 
 const fmt  = n => Number(n||0).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -963,6 +978,12 @@ const isValidDay = (day, count) => {
 const dailyDayKeys = (entries,count) => Object.keys(entries)
   .filter(day=>Array.isArray(entries[day]) && entries[day].length)
   .sort((a,b)=>Number(isValidDay(a,count))-Number(isValidDay(b,count)) || Number(a)-Number(b) || a.localeCompare(b));
+const paymentStatusOf = item => PAYMENT_STATUSES.includes(item?.paymentStatus)?item.paymentStatus:"paid";
+const dailyFinancials = entries => Object.values(entries||{}).flat().reduce((totals,item)=>{
+  const status=paymentStatusOf(item);
+  totals[status]+=Number(item.amount||0);
+  return totals;
+},{paid:0,reserved:0,unpaid:0});
 const mkid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
 
 function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch{ return null; } }
@@ -976,12 +997,13 @@ function validateBackup(data){
   if(!isRecord(data) || data.app!=="บันทึกรายจ่าย" || data.version!==1 || !isRecord(data.months)) throw new Error("รูปแบบไฟล์สำรองไม่ถูกต้อง");
   const money = n => (typeof n === "number" || (typeof n === "string" && n.trim()!=="")) && Number.isFinite(Number(n)) && Number(n)>=0;
   const items = list => Array.isArray(list) && list.every(it => isRecord(it) && typeof it.name==="string" && money(it.amount));
+  const dailyItems = list => items(list) && list.every(it=>it.paymentStatus==null || PAYMENT_STATUSES.includes(it.paymentStatus));
   if(data.config!=null && (!isRecord(data.config) || !["income","savingGoal","monthlyBudget"].every(k=>data.config[k]==null || money(data.config[k])))) throw new Error("ข้อมูลรายรับไม่ถูกต้อง");
   for(const [key,md] of Object.entries(data.months)){
     if(!isMonthStorageKey(key) || !isRecord(md) || !items(md.fixedExpenses) || !isRecord(md.daily) || !isRecord(md.paid)) throw new Error("ข้อมูลเดือนไม่ถูกต้อง");
     if(md.income!=null && !money(md.income)) throw new Error("ข้อมูลรายรับรายเดือนไม่ถูกต้อง");
     // Keep legacy out-of-month days intact; date repair is a separate operation.
-    if(!Object.entries(md.daily).every(([day,list])=>/^([1-9]|[12][0-9]|3[01])$/.test(day) && items(list))) throw new Error("ข้อมูลรายวันไม่ถูกต้อง");
+    if(!Object.entries(md.daily).every(([day,list])=>/^([1-9]|[12][0-9]|3[01])$/.test(day) && dailyItems(list))) throw new Error("ข้อมูลรายวันไม่ถูกต้อง");
     if(md.savingItems!=null && !items(md.savingItems)) throw new Error("ข้อมูลเงินออมไม่ถูกต้อง");
     if(md.dailyBudgetSnapshots!=null && (!isRecord(md.dailyBudgetSnapshots) || !Object.values(md.dailyBudgetSnapshots).every(money))) throw new Error("ข้อมูลงบรายวันไม่ถูกต้อง");
   }
@@ -1183,6 +1205,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [fCategory, setFCategory] = useState(CATEGORIES[0]);
+  const [fPaymentStatus, setFPaymentStatus] = useState("paid");
   const [fNote, setFNote] = useState("");
   const [showNote, setShowNote] = useState(false);
   const noteRef = useRef(null);
@@ -1713,29 +1736,34 @@ function App() {
   const unpaidFixedTotal = (fixedExpenses || [])
       .filter(e => !paidFixed[e.id])
       .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  // แยกรายจ่ายรายวันเป็น "จ่ายแล้ว (≤วันนี้)" กับ "ล่วงหน้า (>วันนี้)"
+  // รายการเก่าที่ไม่มี paymentStatus ถือเป็น "จ่ายแล้ว" เพื่อรักษายอดเดิมทั้งหมด
+  const dailyTotals = dailyFinancials(dailyEntries);
   const _todayNum = new Date().getDate();
   const _isCurrentMonthForVar = year === new Date().getFullYear() && month === new Date().getMonth() + 1;
-  const totalVar   = Object.values(dailyEntries).flat().reduce((s,i)=>s+Number(i.amount||0),0);
+  const totalVar = dailyTotals.paid;
+  const reservedDailyTotal = dailyTotals.reserved;
+  const unpaidDailyTotal = dailyTotals.unpaid;
   const pastAndTodayVar = _isCurrentMonthForVar
     ? Object.entries(dailyEntries)
         .filter(([d]) => Number(d) <= _todayNum)
         .flatMap(([,items]) => items)
+        .filter(item=>paymentStatusOf(item)==="paid")
         .reduce((s,i) => s + Number(i.amount||0), 0)
     : totalVar;
   const futureVar = _isCurrentMonthForVar ? Object.entries(dailyEntries)
     .filter(([d])=>isValidDay(d,daysInMonth(year,month)) && Number(d)>_todayNum)
-    .flatMap(([,items])=>items).reduce((sum,it)=>sum+Number(it.amount||0),0) : 0;
+    .flatMap(([,items])=>items).filter(item=>paymentStatusOf(item)==="paid").reduce((sum,it)=>sum+Number(it.amount||0),0) : 0;
   const totalSavings = savingItems.reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
   // งบรายจ่ายคำนวณอัตโนมัติ: รายรับ - เงินออม - รายจ่ายประจำ
   const spendableBudget = Math.max(0, income - totalSavings - totalFixed);
-  const remaining  = spendableBudget - totalVar;
-  // Rolling daily budget: รายจ่ายล่วงหน้าไม่ดึงงบวันอื่น — หักเฉพาะที่จ่ายจริง (≤วันนี้)
-  const remainingForDaily = spendableBudget - pastAndTodayVar;
+  const availableAfterReserved = spendableBudget-reservedDailyTotal;
+  const remaining = availableAfterReserved-totalVar;
+  // เงินกันไว้ลดวงเงินที่นำไปใช้ได้ทันที ส่วนรายจ่ายตามวันที่ยังคงหลักงบวันนี้เดิม
+  const remainingForDaily = availableAfterReserved-pastAndTodayVar;
   const totalExp   = totalFixed + totalVar;
   const savings    = totalSavings;
   const goalPct    = income>0?Math.min(100,(totalSavings/income)*100):0;
-  const budgetPctRaw = spendableBudget>0 ? (totalVar/spendableBudget)*100 : 0;
+  const budgetPctRaw = spendableBudget>0 ? ((totalVar+reservedDailyTotal)/spendableBudget)*100 : 0;
   const budgetPct = Math.min(100, budgetPctRaw); // ใช้สำหรับความกว้าง progress bar เท่านั้น
   const daysInSelectedMonth = new Date(year, month, 0).getDate();
   const today = new Date();
@@ -1750,7 +1778,7 @@ function App() {
     year === todayDate.getFullYear() && month === todayDate.getMonth() + 1;
   const todayKey = isTodayInSelectedMonth ? String(todayDate.getDate()) : null;
   const todaySpent = todayKey
-    ? Number((dailyEntries[todayKey] || []).reduce((s,e)=>s+Number(e.amount||0),0))
+    ? Number((dailyEntries[todayKey] || []).filter(e=>paymentStatusOf(e)==="paid").reduce((s,e)=>s+Number(e.amount||0),0))
     : 0;
 
   // งบวันนี้ล็อกไว้ตั้งแต่ครั้งแรกที่เปิดดูวันนี้
@@ -1806,9 +1834,9 @@ function App() {
     setDailyErrors(errors);
     if(Object.values(errors).some(Boolean)) return false;
     const dayKey=String(Number(fDay));
-    const upd={...dailyEntries,[dayKey]:[...(dailyEntries[dayKey]||[]),{id:mkid(),name:fName.trim(),amount:Number(fAmt),category:fCategory,note:fNote.trim()}]};
+    const upd={...dailyEntries,[dayKey]:[...(dailyEntries[dayKey]||[]),{id:mkid(),name:fName.trim(),amount:Number(fAmt),category:fCategory,note:fNote.trim(),paymentStatus:fPaymentStatus}]};
     if(!saveMonth(null,upd,null)) return false;
-    setDaily(upd);setFName("");setFAmt("");setFNote("");setFCategory(CATEGORIES[0]);setExpDay(dayKey);setDailyErrors({});
+    setDaily(upd);setFName("");setFAmt("");setFNote("");setFCategory(CATEGORIES[0]);setFPaymentStatus("paid");setExpDay(dayKey);setDailyErrors({});
     setTimeout(()=>dailyNameRef.current?.focus(),0);return true;
   };
   const submitDaily = ()=>{
@@ -1969,6 +1997,12 @@ function App() {
     if(!saveMonth(null,upd,null)) return false;
     setDaily(upd);return true;
   };
+  const saveDailyPaymentStatus = (day,idx,v)=>{
+    if(!canEditMonth() || !PAYMENT_STATUSES.includes(v) || !dailyEntries[day]?.[idx]) return false;
+    const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,paymentStatus:v}:it)};
+    if(!saveMonth(null,upd,null)) return false;
+    setDaily(upd);return true;
+  };
   const saveDailyAmt = (day,idx,v)=>{
     if(!canEditMonth() || amountError(v) || !dailyEntries[day]?.[idx])return false;
     const upd={...dailyEntries,[day]:dailyEntries[day].map((it,i)=>i===idx?{...it,amount:Number(v)}:it)};
@@ -2003,19 +2037,23 @@ function App() {
     const record=allMonthData[k];
     const d=record||{fixedExpenses:[],daily:{},savingItems:[],paid:{}};
     const fx=sumPaidFixed(d);
-    const varExp=Object.values(d.daily||{}).flat().reduce((s,it)=>s+Number(it.amount||0),0);
+    const dailyStatusTotals=dailyFinancials(d.daily||{});
+    const varExp=dailyStatusTotals.paid;
+    const reserved=dailyStatusTotals.reserved;
+    const unpaid=dailyStatusTotals.unpaid;
     const savings=(d.savingItems||[]).reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
     const total=fx+varExp;
     const monthIncome=resolveMonthIncome(d);
-    const remaining=monthIncome-savings-total;
+    const remaining=monthIncome-savings-total-reserved;
     const hasExplicitIncome=!!record && isValidIncome(record.income) && Number(record.income)>0;
-    const hasActivity=fx>0||varExp>0||savings>0;
-    return {month:i+1,income:monthIncome,fx,varExp,savings,total,remaining,hasData:!!record&&(hasExplicitIncome||hasActivity)};
+    const hasActivity=fx>0||varExp>0||reserved>0||unpaid>0||savings>0;
+    return {month:i+1,income:monthIncome,fx,varExp,reserved,unpaid,savings,total,remaining,hasData:!!record&&(hasExplicitIncome||hasActivity)};
   });
   const activeMonths = ovStats.filter(m=>m.hasData);
   const ovTotalExp = activeMonths.reduce((s,m)=>s+m.total,0);
   const ovTotalInc = activeMonths.reduce((sum,m)=>sum+m.income,0);
   const ovTotalSav = activeMonths.reduce((s,m)=>s+m.savings,0);
+  const ovTotalReserved = activeMonths.reduce((s,m)=>s+m.reserved,0);
   const ovTotalRemaining = activeMonths.reduce((s,m)=>s+m.remaining,0);
 
   // รวมเฉพาะรายจ่ายประจำที่ "จ่ายแล้ว" ของแต่ละเดือน
@@ -2051,7 +2089,7 @@ function App() {
   const categoryTotals = {};
   activeMonths.forEach(ms=>{
     const d=allMonthData[mk(ovYear,ms.month)]||{daily:{}};
-    Object.values(d.daily||{}).flat().forEach(it=>{ const c=it.category||"📦 อื่น ๆ"; categoryTotals[c]=(categoryTotals[c]||0)+Number(it.amount||0); });
+    Object.values(d.daily||{}).flat().filter(it=>paymentStatusOf(it)==="paid").forEach(it=>{ const c=it.category||"📦 อื่น ๆ"; categoryTotals[c]=(categoryTotals[c]||0)+Number(it.amount||0); });
   });
   const annualCategories = Object.entries(categoryTotals).sort((a,b)=>b[1]-a[1]);
   const combinedCategoryTotals={};
@@ -2079,7 +2117,7 @@ function App() {
         <div className="header">
           <div className="header-top">
             <span className="header-title">💰 บันทึกรายจ่าย</span>
-            <button className="add-btn" disabled={!monthDataReady || hydratedMonthKey!==monthKey} onClick={()=>{setModal(true);setModalTab("daily");}}>+ เพิ่มรายจ่าย</button>
+            <button className="add-btn" disabled={!monthDataReady || hydratedMonthKey!==monthKey} onClick={()=>{setFPaymentStatus("paid");setModal(true);setModalTab("daily");}}>+ เพิ่มรายจ่าย</button>
           </div>
           <MainNav tab={tab} onChange={setTab}/>
           <div className="month-nav">
@@ -2100,9 +2138,9 @@ function App() {
             <div className="balance-amount" style={{color:remaining<0?"#FCA5A5":"#fff"}}>
               ฿{fmt(Math.abs(remaining))}{remaining<0&&<span style={{fontSize:14,marginLeft:6}}>⚠️ เกินงบ</span>}
             </div>
-            <div className="balance-context">หลังหักเงินออม รายจ่ายประจำที่จ่ายแล้ว และรายจ่ายรายวัน</div>
+            <div className="balance-context">หลังหักเงินออม รายจ่ายที่จ่ายแล้ว และเงินที่กันไว้</div>
             <div className="balance-progress-head">
-              <span>ใช้งบรายวันแล้ว</span>
+              <span>ใช้หรือกันงบรายวันแล้ว</span>
               <span>{budgetPct.toFixed(0)}%</span>
             </div>
             <div className="progress-bar" style={{background:"rgba(255,255,255,.15)",marginTop:6}}><div className="progress-fill" style={{width:`${Math.min(100,budgetPct)}%`,background:budgetPctRaw>100?"#FCA5A5":budgetPctRaw>=80?"#FBBF24":"#B7E4C7"}}/></div>
@@ -2112,6 +2150,7 @@ function App() {
               <div className="balance-mini"><div className="bm-label">ประจำที่จ่ายแล้ว</div><div className="bm-val">฿{fmt(totalFixed)}</div></div>
               <div className="balance-mini"><div className="bm-label">รายวัน</div><div className="bm-val">฿{fmt(totalVar)}</div></div>
             </div>
+            {reservedDailyTotal>0&&<div className="reserved-summary"><span>กันเงินไว้ใช้จ่ายแล้ว</span><strong>฿{fmt(reservedDailyTotal)}</strong></div>}
             <div style={{marginTop:12,padding:"12px 14px",borderRadius:14,background:"rgba(255,255,255,.10)",border:"1px solid rgba(255,255,255,.10)"}}>
               <div style={{fontSize:11,color:"#D1FAE5",fontWeight:700}}>{isCurrentMonth?"📅 งบวันนี้ (คงที่)":"📅 งบเฉลี่ยต่อวัน"}</div>
 
@@ -2124,7 +2163,7 @@ function App() {
                 : `฿${fmt(Math.max(0,remainingForDaily))} ÷ ${daysLeft} วันในเดือนนี้`}</div>
               {futureVar > 0 && (
                 <div style={{marginTop:5,padding:"4px 8px",borderRadius:8,background:"rgba(255,255,255,.12)",fontSize:10,color:"#FDE68A"}}>
-                  📋 จองล่วงหน้า ฿{fmt(futureVar)} · จะหักอัตโนมัติเมื่อถึงวัน
+                  📋 รายการวันที่ล่วงหน้า ฿{fmt(futureVar)} · ยังไม่หักจากงบวันนี้
                 </div>
               )}
               {isCurrentMonth && <div style={{marginTop:7,fontSize:12,color:todayRemaining>=0?"#D1FAE5":"#FCA5A5"}}>
@@ -2222,7 +2261,7 @@ function App() {
         <div className="section" style={{marginTop:16}}>
           <div className="section-header">
             <span className="section-title">รายจ่ายรายวัน</span>
-            <span style={{fontSize:13,color:"#6B7280"}}>฿{fmt(totalVar)}</span>
+            <span className="daily-section-total"><span>จ่ายแล้ว</span><strong>฿{fmt(totalVar)}</strong></span>
           </div>
           <div className="daily-toolbar">
             <button type="button" className={`daily-tool-btn${showDailyTools||searchTerm||filterCategory?" active":""}`} aria-expanded={showDailyTools} aria-controls="daily-tools-panel" onClick={()=>setShowDailyTools(v=>!v)}>ค้นหา / กรอง{(searchTerm||filterCategory)&&<span className="daily-active-dot" aria-label="กำลังใช้ตัวกรอง"/>}</button>
@@ -2232,7 +2271,7 @@ function App() {
             <input className="form-input" aria-label="ค้นหารายจ่ายรายวัน" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="ค้นหารายการ / หมายเหตุ"/>
             <select className="form-input" aria-label="กรองรายจ่ายตามหมวดหมู่" value={filterCategory} onChange={e=>setFilterCategory(e.target.value)}><option value="">ทุกหมวดหมู่</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
           </div>}
-          {invalidDays.length>0 && <div className="notice" role="status">⚠️ พบรายการวันที่ไม่ถูกต้อง ฿{fmt(invalidDayTotal)} — ยังรวมอยู่ในยอดรายจ่าย เลือกวันที่ที่ถูกต้องหรือลบรายการด้านล่าง รายการเหล่านี้แสดงแม้กำลังกรองข้อมูล</div>}
+          {invalidDays.length>0 && <div className="notice" role="status">⚠️ พบรายการวันที่ไม่ถูกต้อง ฿{fmt(invalidDayTotal)} — ระบบยังคำนวณตามสถานะของแต่ละรายการ เลือกวันที่ที่ถูกต้องหรือลบรายการด้านล่าง รายการเหล่านี้แสดงแม้กำลังกรองข้อมูล</div>}
           <div className="list-box">
             {sortedListedDays.filter(d=>!isValidDay(d,days) || (dailyEntries[d]||[]).some(matchesFilter)).map(d=>{
               const items=dailyEntries[String(d)]||[];
@@ -2252,11 +2291,12 @@ function App() {
                       {items.map((it,idx)=>({it,idx})).filter(x=>invalidDay || matchesFilter(x.it)).map(({it,idx})=>{
                         const itemKey=it.id||`${d}-${idx}`;
                         const isItemExpanded=expandedDailyItem===itemKey;
+                        const paymentStatus=paymentStatusOf(it);
                         return <div className="day-item" key={itemKey}>
                           <div className="daily-item-main">
                             <span className="di-name">
                               <Editable value={it.name} onSave={v=>saveDailyName(String(d),idx,v)} isText style={{fontSize:14,color:"#34443B",fontWeight:600}}/>
-                              <span className="di-meta"><span className="di-category-label">{it.category||"📦 อื่น ๆ"}</span>{it.note&&<span className="di-note">· {it.note}</span>}</span>
+                              <span className="di-meta"><span className="di-category-label">{it.category||"📦 อื่น ๆ"}</span>{paymentStatus!=="paid"&&<span className={`payment-badge ${paymentStatus}`}>{PAYMENT_STATUS_LABELS[paymentStatus]}</span>}{it.note&&<span className="di-note">· {it.note}</span>}</span>
                             </span>
                             <span className="daily-amount-cluster">
                               <span className="di-amt"><Editable value={it.amount} onSave={v=>saveDailyAmt(String(d),idx,v)} prefix="฿" style={{fontSize:14,fontWeight:600,color:"#1B4332",fontVariantNumeric:"tabular-nums"}}/></span>
@@ -2268,7 +2308,10 @@ function App() {
                             {Array.from({length:days},(_,i)=>i+1).map(day=><option key={day} value={day}>{day} {MONTH_SHORT[month-1]}</option>)}
                           </select>}
                           {isItemExpanded&&<div className="daily-item-details" id={`daily-details-${itemKey}`}>
-                            <label className="daily-detail-field">หมวดหมู่<select className="form-input" value={it.category||"📦 อื่น ๆ"} onChange={e=>saveDailyCategory(String(d),idx,e.target.value)} aria-label={`หมวดหมู่ของ ${it.name}`}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></label>
+                            <div className="daily-detail-fields">
+                              <label className="daily-detail-field">หมวดหมู่<select className="form-input" value={it.category||"📦 อื่น ๆ"} onChange={e=>saveDailyCategory(String(d),idx,e.target.value)} aria-label={`หมวดหมู่ของ ${it.name}`}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></label>
+                              <label className="daily-detail-field">สถานะ<select className="form-input" value={paymentStatus} onChange={e=>saveDailyPaymentStatus(String(d),idx,e.target.value)} aria-label={`สถานะการจ่ายของ ${it.name}`}>{PAYMENT_STATUSES.map(status=><option key={status} value={status}>{PAYMENT_STATUS_LABELS[status]}</option>)}</select></label>
+                            </div>
                             <div className="daily-detail-actions">
                               <button type="button" className="daily-secondary-btn" aria-label={invalidDay?`แก้วันที่ของ ${it.name} ก่อนทำซ้ำ`:`ทำซ้ำ ${it.name}`} disabled={invalidDay} onClick={()=>duplicateDaily(String(d),idx)}><svg className="action-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>ทำซ้ำ</button>
                               <button type="button" className="daily-delete-btn" aria-label={`ลบ ${it.name}`} onClick={()=>delDaily(String(d),idx)}><svg className="action-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v6M14 10v6"/></svg>ลบ</button>
@@ -2307,7 +2350,8 @@ function App() {
           <div className="ov-card overview-primary">
             <div className="ov-clabel ov-title-row"><LineIcon name="balance"/>เงินคงเหลือรวมปี</div>
             <div className={`ov-camt ${ovTotalRemaining<0?"danger":"success"}`}>{ovTotalRemaining<0?"−":""}฿{fmt(Math.abs(ovTotalRemaining))}</div>
-            <div className="ov-csub">รายรับ − เงินออม − รายจ่าย</div>
+            <div className="ov-csub">รายรับ − เงินออม − รายจ่าย − เงินกันไว้</div>
+            {ovTotalReserved>0&&<div className="overview-expense-detail"><span>กันเงินไว้ ฿{fmt(ovTotalReserved)}</span></div>}
           </div>
           <div className="ov-card overview-kpi">
             <div className="ov-clabel ov-title-row"><LineIcon name="income"/>รายรับรวมปี</div>
@@ -2456,7 +2500,7 @@ function App() {
               >✓</button>
             </div>
             <div className="modal-tabs">
-              <button className={`modal-tab${modalTab==="daily"?" active":""}`} onClick={()=>setModalTab("daily")}>รายวัน</button>
+              <button className={`modal-tab${modalTab==="daily"?" active":""}`} onClick={()=>{setFPaymentStatus("paid");setModalTab("daily");}}>รายวัน</button>
               <button className={`modal-tab${modalTab==="fixed"?" active":""}`} onClick={()=>setModalTab("fixed")}>ประจำเดือน</button>
             </div>
           </div>
@@ -2518,6 +2562,13 @@ function App() {
                   }}
                 />
                 {dailyErrors.amount && <span id="expense-amount-error" className="field-error" role="alert">{dailyErrors.amount}</span>}
+              </div>
+              <div className="form-group">
+                <span className="form-label" id="payment-status-label">สถานะการจ่าย</span>
+                <div className="payment-status-picker" role="group" aria-labelledby="payment-status-label">
+                  {PAYMENT_STATUSES.map(status=><button type="button" key={status} className={`payment-status-option${fPaymentStatus===status?" active":""}`} aria-pressed={fPaymentStatus===status} onClick={()=>setFPaymentStatus(status)}>{PAYMENT_STATUS_LABELS[status]}</button>)}
+                </div>
+                <div className="payment-status-help">{fPaymentStatus==="reserved"?"หักจากเงินใช้ได้ทันที แต่ยังไม่นับเป็นรายจ่าย":fPaymentStatus==="unpaid"?"บันทึกไว้ก่อน โดยยังไม่หักเงิน":"นับเป็นรายจ่ายที่จ่ายแล้วทันที"}</div>
               </div>
               {(showNote || !!fNote.trim()) && (
                 <div className="form-group">
