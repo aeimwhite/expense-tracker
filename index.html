@@ -1630,11 +1630,21 @@ function App() {
   const days = daysInMonth(year,month);
   const todayDay = now.getMonth()+1===month&&now.getFullYear()===year?now.getDate():null;
 
-  // Overview — แต่ละเดือนใช้ fixed ของตัวเอง
+  // Overview — ใช้นิยาม "รายจ่ายประจำที่จ่ายแล้ว" ให้ตรงกับหน้ารายเดือน
+  const isFixedPaid = (monthData, item) => {
+    const paid = monthData?.paid;
+    if(paid && Object.prototype.hasOwnProperty.call(paid,item.id)) return !!paid[item.id];
+    return !!item.checked; // fallback สำหรับข้อมูลเก่าที่ยังเก็บสถานะไว้ในรายการ
+  };
+  const sumPaidFixed = monthData =>
+    (monthData?.fixedExpenses||[])
+      .filter(e=>isFixedPaid(monthData,e))
+      .reduce((sum,e)=>sum+Number(e.amount||0),0);
+
   const ovStats = Array.from({length:12},(_,i)=>{
     const k=mk(ovYear,i+1);
-    const d=allMonthData[k]||{fixedExpenses:[],daily:{},savingItems:[]};
-    const fx=(d.fixedExpenses||[]).reduce((s,e)=>s+Number(e.amount||0),0);
+    const d=allMonthData[k]||{fixedExpenses:[],daily:{},savingItems:[],paid:{}};
+    const fx=sumPaidFixed(d);
     const varExp=Object.values(d.daily||{}).flat().reduce((s,it)=>s+Number(it.amount||0),0);
     const savings=(d.savingItems||[]).reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
     const total=fx+varExp;
@@ -1646,14 +1656,15 @@ function App() {
   const ovTotalInc = activeMonths.length*income;
   const ovTotalSav = activeMonths.reduce((s,m)=>s+m.savings,0);
   const ovTotalRemaining = activeMonths.reduce((s,m)=>s+m.remaining,0);
-  // รวมรายจ่ายประจำของทั้งปีจากข้อมูลจริงของแต่ละเดือน
-  // ไม่ใช้จำนวนของเดือนปัจจุบันคูณ 12 เพราะรายจ่ายประจำแต่ละเดือนแยกอิสระจากกัน
+
+  // รวมเฉพาะรายจ่ายประจำที่ "จ่ายแล้ว" ของแต่ละเดือน
+  // เพื่อให้ยอดรวมปี / แยกรายการ / แยกหมวดหมู่ ใช้ฐานเดียวกับหน้ารายเดือน
   const annualFixedTotal = ovStats.reduce((sum,m)=>sum+m.fx,0);
   const annualFixedByItem = {};
   ovStats.forEach(ms=>{
-    const d=allMonthData[mk(ovYear,ms.month)]||{fixedExpenses:[]};
+    const d=allMonthData[mk(ovYear,ms.month)]||{fixedExpenses:[],paid:{}};
     (d.fixedExpenses||[]).forEach(e=>{
-      // รวมรายจ่ายประจำที่ "ชื่อเหมือนกัน" เข้าด้วยกัน แม้ id จะต่างกันในแต่ละเดือน
+      if(!isFixedPaid(d,e)) return;
       const itemName = String(e.name||"").trim();
       const key = `name:${itemName.toLowerCase().replace(/\s+/g," ")}`;
       if(!annualFixedByItem[key]) annualFixedByItem[key]={name:itemName,total:0,months:0};
@@ -1661,17 +1672,18 @@ function App() {
       annualFixedByItem[key].months += 1;
     });
   });
+
   const annualFixedCategories=Object.entries(ovStats.reduce((acc,m)=>{
-    const d=allMonthData[mk(ovYear,m.month)]||{fixedExpenses:[]};
+    const d=allMonthData[mk(ovYear,m.month)]||{fixedExpenses:[],paid:{}};
     (d.fixedExpenses||[]).forEach(e=>{
-      if(!((d.paid ? !!d.paid[e.id] : !!e.checked))) return;
+      if(!isFixedPaid(d,e)) return;
       const c=e.category||"📦 อื่น ๆ";
       acc[c]=(acc[c]||0)+Number(e.amount||0);
     });
     return acc;
   },{})).sort((a,b)=>b[1]-a[1]);
   const annualFixedItems = Object.values(annualFixedByItem).sort((a,b)=>b.total-a.total);
-  
+
   const highestMonth = activeMonths.length ? activeMonths.reduce((a,b)=>b.total>a.total?b:a) : null;
   const annualVarTotal = ovStats.reduce((sum,m)=>sum+m.varExp,0);
   const categoryTotals = {};
@@ -1686,10 +1698,10 @@ function App() {
   const compareMonth = activeMonths.length ? activeMonths[activeMonths.length-1].month : month;
   const compareYear = ovYear;
   const prevM = compareMonth===1?12:compareMonth-1, prevY=compareMonth===1?compareYear-1:compareYear;
-  const compareData = allMonthData[mk(compareYear,compareMonth)]||{fixedExpenses:[],daily:{}};
-  const compareTotal = (compareData.fixedExpenses||[]).reduce((a,e)=>a+Number(e.amount||0),0)+Object.values(compareData.daily||{}).flat().reduce((a,e)=>a+Number(e.amount||0),0);
-  const prevData = lsGet(mk(prevY,prevM))||allMonthData[mk(prevY,prevM)]||{fixedExpenses:[],daily:{}};
-  const prevTotal = (prevData.fixedExpenses||[]).reduce((a,e)=>a+Number(e.amount||0),0)+Object.values(prevData.daily||{}).flat().reduce((a,e)=>a+Number(e.amount||0),0);
+  const compareData = allMonthData[mk(compareYear,compareMonth)]||{fixedExpenses:[],daily:{},paid:{}};
+  const compareTotal = sumPaidFixed(compareData)+Object.values(compareData.daily||{}).flat().reduce((a,e)=>a+Number(e.amount||0),0);
+  const prevData = lsGet(mk(prevY,prevM))||allMonthData[mk(prevY,prevM)]||{fixedExpenses:[],daily:{},paid:{}};
+  const prevTotal = sumPaidFixed(prevData)+Object.values(prevData.daily||{}).flat().reduce((a,e)=>a+Number(e.amount||0),0);
   const monthDiff = compareTotal-prevTotal;
   const monthDiffPct = prevTotal>0 ? (monthDiff/prevTotal)*100 : null;
 
