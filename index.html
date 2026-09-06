@@ -8,7 +8,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Sarabun',sans-serif;background:#EEF2EE;min-height:100vh;}
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Sarabun',sans-serif;background:#EEF2EE;min-height:100vh;}
 /* ===== Desktop / Web Browser UI ===== */
 html, body { min-height:100%; }
 body {
@@ -82,9 +83,6 @@ button, input, select { font-family:inherit; }
 button { cursor:pointer; }
 input, select { max-width:100%; }
 
-</style>
-
-<style>
 /* Compact lists: show more daily and monthly expenses at once */
 .fixed-item{padding:8px 12px !important;gap:8px !important;min-height:38px !important;}
 .fx-name{font-size:13px !important;}
@@ -101,9 +99,7 @@ input, select { max-width:100%; }
   .fixed-item{padding:7px 10px !important;min-height:36px !important;}
   .day-card{padding:7px 8px !important;margin-bottom:5px !important;}
 }
-</style>
 
-<style>
 /* Card Grid for monthly fixed expenses + category summary */
 .fixed-list,
 .category-summary,
@@ -162,10 +158,7 @@ input, select { max-width:100%; }
 .day-list {
   display:block !important;
 }
-</style>
 
-
-<style>
 /* === UI only: requested sections use 2 columns === */
 .two-col-list{
   display:grid !important;
@@ -196,10 +189,7 @@ input, select { max-width:100%; }
     gap:8px !important;
   }
 }
-</style>
 
-
-<style>
 /* UI only: fixed expenses + annual fixed + annual daily categories */
 .two-col-fixed,
 .two-col-category{
@@ -233,15 +223,10 @@ input, select { max-width:100%; }
     gap:8px !important;
   }
 }
-</style>
 
-
-<style>
 .fx-category-select{width:100%;margin-top:6px;padding:6px 8px;border:1px solid #E5E7EB;border-radius:8px;background:#F9FAFB;color:#667085;font:inherit;font-size:11px;outline:none;}
 .two-col-fixed > .fixed-item{display:flex !important;flex-direction:column !important;align-items:stretch !important;}
-</style>
 
-<style>
 /* รายจ่ายประจำ: 3 คอลัมน์บน PC / 2 คอลัมน์บนมือถือ */
 .two-col-fixed{
   display:grid !important;
@@ -269,10 +254,7 @@ input, select { max-width:100%; }
     max-width:100% !important;
   }
 }
-</style>
 
-
-<style>
 /* การ์ดรายจ่ายประจำแบบกระชับ */
 .two-col-fixed > .fixed-item{
   padding:12px 14px !important;
@@ -321,10 +303,7 @@ input, select { max-width:100%; }
     margin-top:4px !important;
   }
 }
-</style>
 
-
-<style>
 .two-col-category{
   display:grid !important;
   grid-template-columns:repeat(2,minmax(0,1fr)) !important;
@@ -340,10 +319,7 @@ input, select { max-width:100%; }
   .two-col-category{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:8px !important;}
   .two-col-category > .fixed-item{padding:10px 12px !important;}
 }
-</style>
 
-
-<style>
 /* Annual fixed expense item cards — compact */
 .two-col-fixed > .fixed-item{
   padding:9px 12px !important;
@@ -369,10 +345,7 @@ input, select { max-width:100%; }
   .two-col-fixed > .fixed-item .fx-amt{font-size:12px !important;}
   .two-col-fixed > .fixed-item > span[style*="font-size:11px"]{font-size:9px !important;margin-right:5px !important;}
 }
-</style>
 
-
-<style>
 /* Annual fixed-item cards: compact + monthly average */
 .annual-fixed-card{display:flex;flex-direction:column;gap:4px;}
 .annual-fixed-top,.annual-fixed-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;}
@@ -385,9 +358,7 @@ input, select { max-width:100%; }
   .annual-fixed-bottom .fx-amt{font-size:12px;}
   .annual-fixed-avg{font-size:9px;}
 }
-</style>
 
-<style>
 /* Clarity: actual cash vs planned future spending */
 .future-badge{
   display:inline-flex;
@@ -407,9 +378,7 @@ input, select { max-width:100%; }
   font-size:11px;
   color:#7B8794;
 }
-</style>
 
-<style>
 /* UI refresh: Minimal Finance Dashboard — visual only */
 :root{
   --ui-gap:12px;
@@ -477,159 +446,7 @@ nav.bottom-nav a,.bottom-nav a,
 nav.bottom-nav button,.bottom-nav button{
   min-height:44px;
 }
-</style>
-</head>
-<body>
-<div id="root"></div>
-<script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
 
-const DEFAULT_FIXED = [
-  { id:"example-rent",  name:"ค่าเช่า",       amount:3000, category:"🏠 ที่พัก", checked:false },
-  { id:"example-phone", name:"ค่าโทรศัพท์", amount:500,  category:"📱 โทรศัพท์/เน็ต", checked:false },
-];
-const MONTH_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-const CATEGORIES = ["🍚 อาหาร","🏠 ที่พัก","🚗 เดินทาง","🛒 ช้อปปิ้ง","📱 โทรศัพท์/เน็ต","💳 หนี้/ผ่อน","🎮 บันเทิง","🏥 สุขภาพ","🎁 ของขวัญ","📦 อื่น ๆ"];
-const MONTH_FULL  = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
-
-const fmt  = n => Number(n||0).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});
-const fmtK = n => { const v=Number(n||0); return v>=1000?(v/1000).toFixed(1)+"K":v.toFixed(0); };
-const daysInMonth = (y,m) => new Date(y,m,0).getDate();
-const isValidDay = (day, count) => {
-  const n=Number(day);
-  return Number.isInteger(n) && n>=1 && n<=count && String(n)===String(day);
-};
-const dailyDayKeys = (entries,count) => Object.keys(entries)
-  .filter(day=>Array.isArray(entries[day]) && entries[day].length)
-  .sort((a,b)=>Number(isValidDay(a,count))-Number(isValidDay(b,count)) || Number(a)-Number(b) || a.localeCompare(b));
-const mkid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
-
-function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch{ return null; } }
-function lsSet(k,v){
-  try{ localStorage.setItem(k,JSON.stringify(v)); return true; }
-  catch{ alert("บันทึกในเครื่องไม่สำเร็จ พื้นที่อาจเต็ม กรุณาสำรองข้อมูลและลองใหม่"); return false; }
-}
-const isRecord = v => v !== null && typeof v === "object" && !Array.isArray(v);
-const isMonthStorageKey = k => /^raijai_\d{4}-(0[1-9]|1[0-2])$/.test(k);
-function validateBackup(data){
-  if(!isRecord(data) || data.app!=="บันทึกรายจ่าย" || data.version!==1 || !isRecord(data.months)) throw new Error("รูปแบบไฟล์สำรองไม่ถูกต้อง");
-  const money = n => (typeof n === "number" || (typeof n === "string" && n.trim()!=="")) && Number.isFinite(Number(n)) && Number(n)>=0;
-  const items = list => Array.isArray(list) && list.every(it => isRecord(it) && typeof it.name==="string" && money(it.amount));
-  if(data.config!=null && (!isRecord(data.config) || !["income","savingGoal","monthlyBudget"].every(k=>data.config[k]==null || money(data.config[k])))) throw new Error("ข้อมูลรายรับไม่ถูกต้อง");
-  for(const [key,md] of Object.entries(data.months)){
-    if(!isMonthStorageKey(key) || !isRecord(md) || !items(md.fixedExpenses) || !isRecord(md.daily) || !isRecord(md.paid)) throw new Error("ข้อมูลเดือนไม่ถูกต้อง");
-    if(md.income!=null && !money(md.income)) throw new Error("ข้อมูลรายรับรายเดือนไม่ถูกต้อง");
-    // Keep legacy out-of-month days intact; date repair is a separate operation.
-    if(!Object.entries(md.daily).every(([day,list])=>/^([1-9]|[12][0-9]|3[01])$/.test(day) && items(list))) throw new Error("ข้อมูลรายวันไม่ถูกต้อง");
-    if(md.savingItems!=null && !items(md.savingItems)) throw new Error("ข้อมูลเงินออมไม่ถูกต้อง");
-    if(md.dailyBudgetSnapshots!=null && (!isRecord(md.dailyBudgetSnapshots) || !Object.values(md.dailyBudgetSnapshots).every(money))) throw new Error("ข้อมูลงบรายวันไม่ถูกต้อง");
-  }
-  return data;
-}
-function replaceBackupLocally(data, endpoint){
-  validateBackup(data);
-  const previous = {};
-  for(let i=0;i<localStorage.length;i++){
-    const k=localStorage.key(i);
-    if(k==="raijai_config" || k==="raijai_outbox_v1" || isMonthStorageKey(k)) previous[k]=localStorage.getItem(k);
-  }
-  // Write the recovery copy successfully BEFORE changing any live record.
-  localStorage.setItem("raijai_before_import_v1",JSON.stringify(previous));
-  const next = {}, stamp=Date.now();
-  if(data.config) next.raijai_config={...data.config,_updatedAt:stamp};
-  Object.entries(data.months).forEach(([k,v])=>{next[k]={...v,_updatedAt:stamp};});
-  try{
-    for(const [k,v] of Object.entries(next)) localStorage.setItem(k,JSON.stringify(v));
-    localStorage.setItem("raijai_outbox_v1",JSON.stringify({endpoint,records:endpoint?next:{}}));
-    for(const k of Object.keys(previous)) if(k!=="raijai_outbox_v1" && !(k in next)) localStorage.removeItem(k);
-  }catch(error){
-    try{
-      for(const k of Object.keys(next)) if(!(k in previous)) localStorage.removeItem(k);
-      if(!("raijai_outbox_v1" in previous)) localStorage.removeItem("raijai_outbox_v1");
-      for(const [k,v] of Object.entries(previous)) localStorage.setItem(k,v);
-    }catch{ throw new Error("กู้คืนอัตโนมัติไม่สำเร็จ สำเนาก่อนนำเข้ายังอยู่ในเครื่อง"); }
-    throw new Error("นำเข้าไม่สำเร็จ คืนข้อมูลเดิมแล้ว");
-  }
-}
-
-// หา fixed ของเดือนก่อนหน้า (ย้อนไปได้สูงสุด 12 เดือน)
-function getPrevFixed(year, month) {
-  for(let i=1;i<=12;i++){
-    let y=year, m=month-i;
-    while(m<1){m+=12;y--;}
-    const k=`raijai_${y}-${String(m).padStart(2,"0")}`;
-    const d=lsGet(k);
-    if(d?.fixedExpenses?.length) return d.fixedExpenses;
-  }
-  return DEFAULT_FIXED;
-}
-
-const isValidIncome = value => value!==null && value!==undefined && String(value).trim()!==""
-  && Number.isFinite(Number(value)) && Number(value)>=0;
-const getLegacyIncome = () => {
-  const value=lsGet("raijai_config")?.income;
-  return isValidIncome(value) ? Number(value) : 0;
-};
-const resolveMonthIncome = (monthData, fallback=getLegacyIncome()) =>
-  isValidIncome(monthData?.income) ? Number(monthData.income) : Number(fallback)||0;
-function getPrevIncome(year, month) {
-  for(let i=1;i<=12;i++){
-    let y=year, m=month-i;
-    while(m<1){m+=12;y--;}
-    const data=lsGet(`raijai_${y}-${String(m).padStart(2,"0")}`);
-    if(data && typeof data==="object") return resolveMonthIncome(data);
-  }
-  return getLegacyIncome();
-}
-
-function amountError(raw,allowZero=true){
-  if(raw==null || String(raw).trim()==="") return "กรุณากรอกจำนวนเงิน";
-  const text=String(raw).trim(), n=Number(text);
-  if(!Number.isFinite(n)) return "กรุณากรอกตัวเลขที่ถูกต้อง";
-  if(n<0) return "จำนวนเงินต้องไม่ติดลบ";
-  if(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return "ใช้ตัวเลขและจุดทศนิยม เช่น 125.50";
-  if(!allowZero && n===0) return "จำนวนเงินต้องมากกว่า 0";
-  return "";
-}
-function Editable({ value, onSave, prefix="", isText=false, allowZero=true, style={} }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(value);
-  const [error,setError] = useState("");
-  const finished=useRef(false);
-  const errorId=React.useId();
-  useEffect(()=>{if(!editing) setVal(value);},[value,editing]);
-  const start = () => {finished.current=false;setVal(value);setError("");setEditing(true);};
-  const cancel = () => {finished.current=true;setVal(value);setError("");setEditing(false);};
-  const save = () => {
-    if(finished.current) return;
-    const message=isText?(!String(val).trim()?"กรุณากรอกชื่อรายการ":""):amountError(val,allowZero);
-    if(message){setError(message);return;}
-    const next=isText?String(val).trim():Number(val);
-    if(next!==value && onSave(next)===false){setError("บันทึกไม่สำเร็จ กรุณาลองใหม่");return;}
-    finished.current=true;setError("");setEditing(false);
-  };
-  if(editing) return (
-    <span style={{display:"inline-flex",flexDirection:"column",maxWidth:"100%",verticalAlign:"top"}}>
-      <input autoFocus type="text" inputMode={isText?undefined:"decimal"} enterKeyHint="done" value={val}
-        aria-label={isText?"แก้ไขชื่อรายการ":"แก้ไขจำนวนเงิน"} aria-invalid={!!error} aria-describedby={error?errorId:undefined}
-        onChange={e=>{setVal(e.target.value);setError("");}} onBlur={save}
-        onKeyDown={e=>{
-          if(e.nativeEvent.isComposing) return;
-          if(e.key==="Enter"){e.preventDefault();save();}
-          if(e.key==="Escape"){e.preventDefault();e.stopPropagation();cancel();}
-        }}
-        style={{...style,border:`1.5px solid ${error?"#B42318":"#1B4332"}`,borderRadius:6,padding:"2px 6px",fontFamily:"'Sarabun',sans-serif",
-          fontSize:"inherit",fontWeight:"inherit",color:"#1B4332",width:isText?120:90,background:"#F0FDF4"}}/>
-      {error&&<span id={errorId} role="alert" className="field-error">{error}</span>}
-    </span>
-  );
-  return <span onClick={start} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();start();}}} title="แตะเพื่อแก้ไข"
-    style={{cursor:"pointer",borderBottom:"1.5px dashed #B7E4C7",paddingBottom:1,...style}}>
-    {prefix}{isText?value:fmt(value)}
-  </span>;
-}
-
-const css = `
 .field-error{display:block;color:#B42318;font-size:12px;line-height:1.4;margin-top:4px;white-space:normal;max-width:220px;}
 .form-input[aria-invalid="true"]{border-color:#B42318;}
 .app{max-width:480px;margin:0 auto;min-height:100vh;background:#EEF2EE;padding-bottom:28px;}
@@ -641,12 +458,11 @@ const css = `
   .section{margin-left:36px !important;margin-right:36px !important;}
   .ov-header,.ov-cards,.backup-row{padding-left:36px !important;padding-right:36px !important;}
   .ov-cards{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px !important;}
-  .ov-card.full{grid-column:1/-1;}
   .list-box{overflow:hidden;}
   .month-table{width:100%;table-layout:fixed;}
   .modal{width:min(760px,calc(100vw - 220px)) !important;max-height:88vh !important;}
 }
-@media (min-width:1500px){body{padding-left:40px;padding-right:110px;}.app{max-width:1280px !important;}.section{margin-left:44px !important;margin-right:44px !important;}.ov-header,.ov-cards,.backup-row{padding-left:44px !important;padding-right:44px !important;}.main-nav{justify-content:flex-end;}}
+@media (min-width:1500px){body{padding-left:40px;padding-right:110px;}.app{max-width:1280px !important;}.section{margin-left:44px !important;margin-right:44px !important;}.ov-header,.ov-cards,.backup-row{padding-left:44px !important;padding-right:44px !important;}}
 .main-nav{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
 .nav-btn{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:none;border-radius:12px;background:transparent;cursor:pointer;color:#9CA3AF;position:relative;transition:.18s ease;}
 .nav-btn:hover{background:#F0FDF4;color:#1B4332;transform:translateY(-1px);}
@@ -662,10 +478,6 @@ const css = `
 }
 @media (max-width: 900px){
   .nav-label{right:58px;}
-}
-@media (min-width: 1300px){
-}
-@media (min-width: 769px) and (max-width: 1299px){
 }
 .header{background:linear-gradient(135deg,#1B4332,#2D6A4F);padding:20px 20px 56px;}
 .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
@@ -954,18 +766,169 @@ const css = `
 }
 
 /* Minimal navigation — รายเดือน / ภาพรวม */
-.main-nav{gap:4px !important;}
+.main-nav{gap:4px;}
 .nav-btn{
-  width:42px !important;height:38px !important;border-radius:10px !important;
-  color:#98A2B3 !important;background:transparent !important;
-  box-shadow:none !important;transform:none !important;
+  width:42px;height:38px;border-radius:10px;
+  color:#98A2B3;background:transparent;
+  box-shadow:none;transform:none;
 }
-.nav-btn:hover{background:#F2F4F7 !important;color:#475467 !important;transform:none !important;}
-.nav-btn.active{background:#EEF4FF !important;color:#2563EB !important;box-shadow:none !important;}
-.nav-icon{font-size:18px !important;filter:grayscale(1);opacity:.65;}
+.nav-btn:hover{background:#F2F4F7;color:#475467;transform:none;}
+.nav-btn.active{background:#EEF4FF;color:#2563EB;box-shadow:none;}
+.nav-icon{font-size:18px;filter:grayscale(1);opacity:.65;}
 .nav-btn.active .nav-icon{filter:grayscale(1);opacity:.9;}
-.nav-label{background:#344054 !important;}
-`;
+.nav-label{background:#344054;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const DEFAULT_FIXED = [
+  { id:"example-rent",  name:"ค่าเช่า",       amount:3000, category:"🏠 ที่พัก", checked:false },
+  { id:"example-phone", name:"ค่าโทรศัพท์", amount:500,  category:"📱 โทรศัพท์/เน็ต", checked:false },
+];
+const MONTH_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+const CATEGORIES = ["🍚 อาหาร","🏠 ที่พัก","🚗 เดินทาง","🛒 ช้อปปิ้ง","📱 โทรศัพท์/เน็ต","💳 หนี้/ผ่อน","🎮 บันเทิง","🏥 สุขภาพ","🎁 ของขวัญ","📦 อื่น ๆ"];
+const MONTH_FULL  = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+
+const fmt  = n => Number(n||0).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtK = n => { const v=Number(n||0); return v>=1000?(v/1000).toFixed(1)+"K":v.toFixed(0); };
+const daysInMonth = (y,m) => new Date(y,m,0).getDate();
+const isValidDay = (day, count) => {
+  const n=Number(day);
+  return Number.isInteger(n) && n>=1 && n<=count && String(n)===String(day);
+};
+const dailyDayKeys = (entries,count) => Object.keys(entries)
+  .filter(day=>Array.isArray(entries[day]) && entries[day].length)
+  .sort((a,b)=>Number(isValidDay(a,count))-Number(isValidDay(b,count)) || Number(a)-Number(b) || a.localeCompare(b));
+const mkid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
+
+function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch{ return null; } }
+function lsSet(k,v){
+  try{ localStorage.setItem(k,JSON.stringify(v)); return true; }
+  catch{ alert("บันทึกในเครื่องไม่สำเร็จ พื้นที่อาจเต็ม กรุณาสำรองข้อมูลและลองใหม่"); return false; }
+}
+const isRecord = v => v !== null && typeof v === "object" && !Array.isArray(v);
+const isMonthStorageKey = k => /^raijai_\d{4}-(0[1-9]|1[0-2])$/.test(k);
+function validateBackup(data){
+  if(!isRecord(data) || data.app!=="บันทึกรายจ่าย" || data.version!==1 || !isRecord(data.months)) throw new Error("รูปแบบไฟล์สำรองไม่ถูกต้อง");
+  const money = n => (typeof n === "number" || (typeof n === "string" && n.trim()!=="")) && Number.isFinite(Number(n)) && Number(n)>=0;
+  const items = list => Array.isArray(list) && list.every(it => isRecord(it) && typeof it.name==="string" && money(it.amount));
+  if(data.config!=null && (!isRecord(data.config) || !["income","savingGoal","monthlyBudget"].every(k=>data.config[k]==null || money(data.config[k])))) throw new Error("ข้อมูลรายรับไม่ถูกต้อง");
+  for(const [key,md] of Object.entries(data.months)){
+    if(!isMonthStorageKey(key) || !isRecord(md) || !items(md.fixedExpenses) || !isRecord(md.daily) || !isRecord(md.paid)) throw new Error("ข้อมูลเดือนไม่ถูกต้อง");
+    if(md.income!=null && !money(md.income)) throw new Error("ข้อมูลรายรับรายเดือนไม่ถูกต้อง");
+    // Keep legacy out-of-month days intact; date repair is a separate operation.
+    if(!Object.entries(md.daily).every(([day,list])=>/^([1-9]|[12][0-9]|3[01])$/.test(day) && items(list))) throw new Error("ข้อมูลรายวันไม่ถูกต้อง");
+    if(md.savingItems!=null && !items(md.savingItems)) throw new Error("ข้อมูลเงินออมไม่ถูกต้อง");
+    if(md.dailyBudgetSnapshots!=null && (!isRecord(md.dailyBudgetSnapshots) || !Object.values(md.dailyBudgetSnapshots).every(money))) throw new Error("ข้อมูลงบรายวันไม่ถูกต้อง");
+  }
+  return data;
+}
+function replaceBackupLocally(data, endpoint){
+  validateBackup(data);
+  const previous = {};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k==="raijai_config" || k==="raijai_outbox_v1" || isMonthStorageKey(k)) previous[k]=localStorage.getItem(k);
+  }
+  // Write the recovery copy successfully BEFORE changing any live record.
+  localStorage.setItem("raijai_before_import_v1",JSON.stringify(previous));
+  const next = {}, stamp=Date.now();
+  if(data.config) next.raijai_config={...data.config,_updatedAt:stamp};
+  Object.entries(data.months).forEach(([k,v])=>{next[k]={...v,_updatedAt:stamp};});
+  try{
+    for(const [k,v] of Object.entries(next)) localStorage.setItem(k,JSON.stringify(v));
+    localStorage.setItem("raijai_outbox_v1",JSON.stringify({endpoint,records:endpoint?next:{}}));
+    for(const k of Object.keys(previous)) if(k!=="raijai_outbox_v1" && !(k in next)) localStorage.removeItem(k);
+  }catch(error){
+    try{
+      for(const k of Object.keys(next)) if(!(k in previous)) localStorage.removeItem(k);
+      if(!("raijai_outbox_v1" in previous)) localStorage.removeItem("raijai_outbox_v1");
+      for(const [k,v] of Object.entries(previous)) localStorage.setItem(k,v);
+    }catch{ throw new Error("กู้คืนอัตโนมัติไม่สำเร็จ สำเนาก่อนนำเข้ายังอยู่ในเครื่อง"); }
+    throw new Error("นำเข้าไม่สำเร็จ คืนข้อมูลเดิมแล้ว");
+  }
+}
+
+// หา fixed ของเดือนก่อนหน้า (ย้อนไปได้สูงสุด 12 เดือน)
+function getPrevFixed(year, month) {
+  for(let i=1;i<=12;i++){
+    let y=year, m=month-i;
+    while(m<1){m+=12;y--;}
+    const k=`raijai_${y}-${String(m).padStart(2,"0")}`;
+    const d=lsGet(k);
+    if(d?.fixedExpenses?.length) return d.fixedExpenses;
+  }
+  return DEFAULT_FIXED;
+}
+
+const isValidIncome = value => value!==null && value!==undefined && String(value).trim()!==""
+  && Number.isFinite(Number(value)) && Number(value)>=0;
+const getLegacyIncome = () => {
+  const value=lsGet("raijai_config")?.income;
+  return isValidIncome(value) ? Number(value) : 0;
+};
+const resolveMonthIncome = (monthData, fallback=getLegacyIncome()) =>
+  isValidIncome(monthData?.income) ? Number(monthData.income) : Number(fallback)||0;
+function getPrevIncome(year, month) {
+  for(let i=1;i<=12;i++){
+    let y=year, m=month-i;
+    while(m<1){m+=12;y--;}
+    const data=lsGet(`raijai_${y}-${String(m).padStart(2,"0")}`);
+    if(data && typeof data==="object") return resolveMonthIncome(data);
+  }
+  return getLegacyIncome();
+}
+
+function amountError(raw,allowZero=true){
+  if(raw==null || String(raw).trim()==="") return "กรุณากรอกจำนวนเงิน";
+  const text=String(raw).trim(), n=Number(text);
+  if(!Number.isFinite(n)) return "กรุณากรอกตัวเลขที่ถูกต้อง";
+  if(n<0) return "จำนวนเงินต้องไม่ติดลบ";
+  if(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return "ใช้ตัวเลขและจุดทศนิยม เช่น 125.50";
+  if(!allowZero && n===0) return "จำนวนเงินต้องมากกว่า 0";
+  return "";
+}
+function Editable({ value, onSave, prefix="", isText=false, allowZero=true, style={} }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  const [error,setError] = useState("");
+  const finished=useRef(false);
+  const errorId=React.useId();
+  useEffect(()=>{if(!editing) setVal(value);},[value,editing]);
+  const start = () => {finished.current=false;setVal(value);setError("");setEditing(true);};
+  const cancel = () => {finished.current=true;setVal(value);setError("");setEditing(false);};
+  const save = () => {
+    if(finished.current) return;
+    const message=isText?(!String(val).trim()?"กรุณากรอกชื่อรายการ":""):amountError(val,allowZero);
+    if(message){setError(message);return;}
+    const next=isText?String(val).trim():Number(val);
+    if(next!==value && onSave(next)===false){setError("บันทึกไม่สำเร็จ กรุณาลองใหม่");return;}
+    finished.current=true;setError("");setEditing(false);
+  };
+  if(editing) return (
+    <span style={{display:"inline-flex",flexDirection:"column",maxWidth:"100%",verticalAlign:"top"}}>
+      <input autoFocus type="text" inputMode={isText?undefined:"decimal"} enterKeyHint="done" value={val}
+        aria-label={isText?"แก้ไขชื่อรายการ":"แก้ไขจำนวนเงิน"} aria-invalid={!!error} aria-describedby={error?errorId:undefined}
+        onChange={e=>{setVal(e.target.value);setError("");}} onBlur={save}
+        onKeyDown={e=>{
+          if(e.nativeEvent.isComposing) return;
+          if(e.key==="Enter"){e.preventDefault();save();}
+          if(e.key==="Escape"){e.preventDefault();e.stopPropagation();cancel();}
+        }}
+        style={{...style,border:`1.5px solid ${error?"#B42318":"#1B4332"}`,borderRadius:6,padding:"2px 6px",fontFamily:"'Sarabun',sans-serif",
+          fontSize:"inherit",fontWeight:"inherit",color:"#1B4332",width:isText?120:90,background:"#F0FDF4"}}/>
+      {error&&<span id={errorId} role="alert" className="field-error">{error}</span>}
+    </span>
+  );
+  return <span onClick={start} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();start();}}} title="แตะเพื่อแก้ไข"
+    style={{cursor:"pointer",borderBottom:"1.5px dashed #B7E4C7",paddingBottom:1,...style}}>
+    {prefix}{isText?value:fmt(value)}
+  </span>;
+}
+
 
 function App() {
   const now = new Date();
@@ -1838,7 +1801,6 @@ function App() {
   const monthDiffPct = prevTotal>0 ? (monthDiff/prevTotal)*100 : null;
 
   return (<>
-    <style>{css}</style>
     <div className="app">
       {!monthDataReady && tab==="month" && <div role="status" className="notice">กำลังโหลดข้อมูลเดือนนี้… หากโหลดไม่สำเร็จให้กดซิงก์แล้วเปิดเดือนนี้ใหม่</div>}
       {/* ═══ MONTH TAB ═══ */}
