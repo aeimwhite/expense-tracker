@@ -553,119 +553,6 @@ const css = `
   .modal{width:min(760px,calc(100vw - 220px)) !important;max-height:88vh !important;}
 }
 @media (min-width:1500px){body{padding-left:40px;padding-right:110px;}.app{max-width:1280px !important;}.section{margin-left:44px !important;margin-right:44px !important;}.ov-header,.ov-cards,.backup-row{padding-left:44px !important;padding-right:44px !important;}.main-nav{justify-content:flex-end;}}
-/* ===== Mobile expense modal: keyboard-safe UX only ===== */
-@media (max-width:768px){
-  .overlay{
-    height:var(--vvh,100dvh);
-    min-height:0;
-    padding:8px 8px calc(8px + env(safe-area-inset-bottom));
-    align-items:flex-end;
-  }
-  .modal{
-    width:100%;
-    max-width:520px;
-    max-height:calc(var(--vvh,100dvh) - 16px);
-    padding:15px 14px calc(12px + env(safe-area-inset-bottom));
-    border-radius:18px;
-    overflow-y:auto;
-    overscroll-behavior:contain;
-    scroll-padding-bottom:90px;
-  }
-  .modal-title{font-size:17px;margin-bottom:10px;}
-  .modal-close{right:10px;top:9px;width:34px;height:34px;line-height:34px;font-size:22px;}
-  .modal-tabs{margin-bottom:10px;padding:2px;}
-  .modal-tab{padding:7px 6px;font-size:13px;}
-
-  /* Date + category share one row, saving vertical space above the keyboard. */
-  .modal .mobile-form-row{
-    display:grid;
-    grid-template-columns:82px minmax(0,1fr);
-    gap:8px;
-    align-items:end;
-  }
-  .modal .mobile-form-row .form-group{min-width:0;}
-  .form-group{margin-bottom:9px;}
-  .form-label{font-size:12px;margin-bottom:3px;}
-  .form-input{
-    min-height:40px;
-    padding:8px 10px;
-    border-radius:10px !important;
-    font-size:14px;
-  }
-  .btn-row{
-    position:sticky;
-    bottom:0;
-    z-index:3;
-    margin:5px -2px 0;
-    padding-top:8px;
-    background:linear-gradient(to bottom,rgba(255,255,255,0),#fff 10px);
-  }
-  .btn-primary,.btn-cancel{min-height:44px;padding:10px 14px;}
-}
-
-/* ===== Mobile modal usability refinements ===== */
-@media (max-width:768px){
-  .modal{
-    box-shadow:0 8px 30px rgba(0,0,0,.14);
-  }
-  .modal-title{
-    padding-left:2px;
-  }
-  .modal .form-group{
-    margin-bottom:8px;
-  }
-  .modal .form-input{
-    background:#fff;
-    -webkit-appearance:none;
-    appearance:none;
-  }
-  .modal .mobile-form-row .form-input{
-    width:100%;
-  }
-  .modal-note-toggle{
-    width:100%;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:8px;
-    border:0;
-    background:#F7F8F7;
-    color:#374151;
-    border-radius:10px;
-    padding:9px 11px;
-    margin:1px 0 8px;
-    font-family:'Sarabun',sans-serif;
-    font-size:13px;
-    font-weight:600;
-    cursor:pointer;
-  }
-  .modal-note-toggle .note-hint{
-    color:#9CA3AF;
-    font-weight:400;
-    margin-left:auto;
-  }
-  .modal-note-wrap{
-    margin-bottom:8px;
-  }
-  .modal-note-wrap .form-group{
-    margin-bottom:0;
-  }
-  .modal-note-input{
-    min-height:42px !important;
-  }
-  .modal .btn-row{
-    margin-top:3px;
-    padding-top:6px;
-  }
-}
-
-@media (max-width:380px){
-  .modal{padding-left:12px;padding-right:12px;}
-  .modal .mobile-form-row{grid-template-columns:74px minmax(0,1fr);gap:7px;}
-  .form-input{font-size:13px;min-height:38px;padding:7px 9px;}
-  .btn-primary,.btn-cancel{font-size:14px;}
-}
-
 .main-nav{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
 .nav-btn{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:none;border-radius:12px;background:transparent;cursor:pointer;color:#9CA3AF;position:relative;transition:.18s ease;}
 .nav-btn:hover{background:#F0FDF4;color:#1B4332;transform:translateY(-1px);}
@@ -770,19 +657,127 @@ const css = `
 .fx-ov-bar-fill{height:100%;border-radius:99px;background:#1B4332;}
 .fx-ov-pct{font-size:11px;color:#9CA3AF;width:28px;text-align:right;}
 .fx-ov-amt{font-size:14px;font-weight:700;color:#1B4332;min-width:80px;text-align:right;}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;padding:0 0 12px;box-sizing:border-box;}
-.modal{position:relative;background:#fff;border-radius:24px 24px 24px 24px;padding:24px 20px 40px;width:100%;max-width:480px;max-height:calc(100dvh - 24px);box-sizing:border-box;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-.modal-title{font-size:18px;font-weight:700;color:#1B4332;margin-bottom:18px;padding-right:40px;}
-.modal-close{position:absolute;right:14px;top:12px;width:36px;height:36px;border:none;border-radius:50%;background:#F3F4F6;color:#374151;font-size:24px;line-height:36px;text-align:center;cursor:pointer;}
-.modal-tabs{display:flex;background:#F3F4F6;border-radius:10px;padding:3px;margin-bottom:18px;}
-.modal-tab{flex:1;padding:8px;text-align:center;font-family:'Sarabun',sans-serif;font-size:14px;font-weight:600;border:none;border-radius:8px;cursor:pointer;background:transparent;color:#6B7280;}
+.overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.45);
+  z-index:100;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  overflow:hidden;
+  padding:8px 0 var(--keyboard-inset,0px);
+  box-sizing:border-box;
+}
+.modal{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  background:#fff;
+  border-radius:24px 24px 0 0;
+  padding:0;
+  width:100%;
+  max-width:480px;
+  max-height:calc(100dvh - var(--keyboard-inset,0px) - 8px);
+  box-sizing:border-box;
+  overflow:hidden;
+}
+.modal-head{
+  flex:0 0 auto;
+  padding:18px 20px 0;
+  background:#fff;
+  position:relative;
+  z-index:2;
+}
+.modal-title{font-size:18px;font-weight:700;color:#1B4332;margin-bottom:14px;padding-right:98px;}
+.modal-head-actions{
+  position:absolute;
+  right:14px;
+  top:10px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.modal-icon-btn{
+  width:40px;
+  height:40px;
+  border:none;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:'Sarabun',sans-serif;
+  font-size:23px;
+  font-weight:800;
+  line-height:1;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+.modal-icon-btn.cancel{
+  background:#F3F4F6;
+  color:#374151;
+}
+.modal-icon-btn.save{
+  background:#1B4332;
+  color:#fff;
+  box-shadow:0 3px 10px rgba(27,67,50,.20);
+}
+.modal-icon-btn:disabled{
+  opacity:.35;
+  cursor:not-allowed;
+  box-shadow:none;
+}
+.modal-tabs{display:flex;background:#F3F4F6;border-radius:12px;padding:3px;margin-bottom:12px;}
+.modal-tab{flex:1;min-height:44px;padding:8px;text-align:center;font-family:'Sarabun',sans-serif;font-size:14px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:transparent;color:#6B7280;}
 .modal-tab.active{background:#fff;color:#1B4332;box-shadow:0 1px 4px rgba(0,0,0,0.1);}
-.form-group{margin-bottom:14px;}
+.modal-body{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  padding:2px 20px 6px;
+}
+.modal-actions{
+  flex:0 0 auto;
+  display:flex;
+  gap:10px;
+  padding:10px 20px calc(10px + env(safe-area-inset-bottom));
+  background:#fff;
+  border-top:1px solid #EEF2F0;
+  box-shadow:0 -6px 16px rgba(15,23,42,.05);
+  position:relative;
+  z-index:3;
+}
+.modal-meta-grid{
+  display:grid;
+  grid-template-columns:minmax(96px,.34fr) minmax(0,1fr);
+  gap:10px;
+}
+.form-group{margin-bottom:12px;}
+.modal-meta-grid .form-group{margin-bottom:12px;}
 .form-label{font-size:13px;font-weight:600;color:#374151;margin-bottom:5px;display:block;}
-.form-input{width:100%;border:1.5px solid #E5E7EB;border-radius:10px;padding:11px 14px;font-family:'Sarabun',sans-serif;font-size:15px;color:#1F2937;outline:none;}
-.form-input:focus{border-color:#1B4332;}
+.form-input{width:100%;min-height:46px;border:1.5px solid #E5E7EB;border-radius:10px;padding:10px 13px;font-family:'Sarabun',sans-serif;font-size:15px;color:#1F2937;outline:none;background:#fff;}
+.form-input:focus{border-color:#1B4332;box-shadow:0 0 0 2px rgba(27,67,50,.08);}
 .btn-row{display:flex;gap:10px;margin-top:6px;}
-.btn-primary{flex:1;background:#1B4332;color:#fff;border:none;border-radius:12px;padding:14px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:700;cursor:pointer;}
+.btn-primary{flex:1;min-height:48px;background:#1B4332;color:#fff;border:none;border-radius:12px;padding:12px 14px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:700;cursor:pointer;}
+.btn-cancel{min-height:48px;}
+@media (max-width:768px){
+  .modal-actions{display:none;}
+}
+@media (min-width:769px){
+  .overlay{align-items:center;padding:24px;}
+  .modal{border-radius:24px;max-height:88vh;}
+  .modal-body{padding-bottom:10px;}
+  .modal-head-actions{display:none;}
+  .modal-title{padding-right:40px;}
+}
+@media (max-width:380px){
+  .modal-head{padding-left:14px;padding-right:14px;}
+  .modal-body{padding-left:14px;padding-right:14px;}
+  .modal-actions{padding-left:14px;padding-right:14px;}
+  .modal-meta-grid{grid-template-columns:100px minmax(0,1fr);gap:8px;}
+}
 .sync-panel{margin:18px 16px 0;background:#fff;border:1px solid #D1FAE5;border-radius:14px;padding:14px 16px;box-shadow:0 1px 6px rgba(0,0,0,.04);}.sync-title{font-size:14px;font-weight:700;color:#1B4332;margin-bottom:5px;}.sync-desc{font-size:11px;color:#6B7280;line-height:1.55;margin-bottom:10px;}.sync-row{display:flex;gap:8px;align-items:center;}.sync-input{flex:1;min-width:0;border:1.5px solid #D1D5DB;border-radius:9px;padding:9px 10px;font-family:'Sarabun',sans-serif;font-size:12px;outline:none;}.sync-input:focus{border-color:#1B4332;}.sync-status{font-size:11px;margin-top:8px;color:#6B7280;}.sync-status.ok{color:#047857;}.sync-status.err{color:#B91C1C;}.backup-row{display:flex;gap:8px;margin:12px 16px 0;}.backup-btn{flex:1;background:#fff;color:#1B4332;border:1px solid #D1FAE5;border-radius:10px;padding:10px 8px;font-family:'Sarabun',sans-serif;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.04);}.backup-btn:hover{background:#F0FDF4;}@media(max-width:600px){.sync-row{flex-direction:column;align-items:stretch;}.backup-row{flex-direction:column;}}
 .btn-cancel{background:#F3F4F6;color:#374151;border:none;border-radius:12px;padding:14px 20px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:600;cursor:pointer;}
 
@@ -878,9 +873,7 @@ function App() {
   const [fxName,setFxName]= useState("");
   const [fxAmt, setFxAmt] = useState("");
   const [modalTab, setModalTab] = useState("daily");
-  const dailyDayRef = useRef(null);
   const dailyNameRef = useRef(null);
-  const dailyAmtRef = useRef(null);
   const [ovYear,   setOvYear]   = useState(now.getFullYear());
   const [allMonthData, setAllMonthData] = useState({});
   const [syncUrl, setSyncUrl] = useState(()=>localStorage.getItem("raijai_sync_url")||"");
@@ -901,8 +894,45 @@ function App() {
   const [filterCategory, setFilterCategory] = useState("");
   const [fCategory, setFCategory] = useState(CATEGORIES[0]);
   const [fNote, setFNote] = useState("");
-  const [noteOpen, setNoteOpen] = useState(false);
   const [lastDeleted, setLastDeleted] = useState(null);
+
+  // Keep the modal above the mobile keyboard without moving the whole overlay.
+  // Some Android browsers already position fixed elements against the visual viewport;
+  // adding visualViewport.offsetTop again can push the modal completely off-screen.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const updateKeyboardInset = () => {
+      const layoutHeight = window.innerHeight || document.documentElement.clientHeight || vv.height;
+      const inset = Math.max(0, Math.round(layoutHeight - vv.height - vv.offsetTop));
+      document.documentElement.style.setProperty("--keyboard-inset", `${inset}px`);
+    };
+
+    updateKeyboardInset();
+    vv.addEventListener("resize", updateKeyboardInset);
+    vv.addEventListener("scroll", updateKeyboardInset);
+    window.addEventListener("resize", updateKeyboardInset);
+    window.addEventListener("orientationchange", updateKeyboardInset);
+
+    return () => {
+      vv.removeEventListener("resize", updateKeyboardInset);
+      vv.removeEventListener("scroll", updateKeyboardInset);
+      window.removeEventListener("resize", updateKeyboardInset);
+      window.removeEventListener("orientationchange", updateKeyboardInset);
+      document.documentElement.style.removeProperty("--keyboard-inset");
+    };
+  }, []);
+
+  // Escape closes the active modal on hardware keyboard / desktop.
+  useEffect(() => {
+    if (!modal) return;
+    const onKeyDown = e => {
+      if (e.key === "Escape") setModal(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [modal]);
 
   // Lock the page behind the modal so only the modal itself can scroll.
   useEffect(() => {
@@ -929,27 +959,6 @@ function App() {
       body.style.touchAction = prev.touchAction;
       html.style.overflow = prev.htmlOverflow;
       window.scrollTo(0, scrollY);
-    };
-  }, [modal]);
-
-  // Android keyboards can shrink the visual viewport without changing the layout viewport.
-  // Keep the expense modal sized to the visible area only; this is UI-only and does not
-  // touch expense data, calculations, or Google Sync.
-  useEffect(() => {
-    if(!modal) return;
-    const vv = window.visualViewport;
-    if(!vv) return;
-    const updateVisualViewport = () => {
-      const h = Math.max(280, Math.round(vv.height));
-      document.documentElement.style.setProperty("--vvh", `${h}px`);
-    };
-    updateVisualViewport();
-    vv.addEventListener("resize", updateVisualViewport);
-    vv.addEventListener("scroll", updateVisualViewport);
-    return () => {
-      vv.removeEventListener("resize", updateVisualViewport);
-      vv.removeEventListener("scroll", updateVisualViewport);
-      document.documentElement.style.removeProperty("--vvh");
     };
   }, [modal]);
 
@@ -1472,11 +1481,6 @@ function App() {
   const prevMonth = ()=>{ if(month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = ()=>{ if(month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
 
-  const scrollModalField = (el)=>{
-    if(!el) return;
-    setTimeout(()=>el.scrollIntoView({block:"center",behavior:"smooth"}),80);
-  };
-
   const addDaily = ()=>{
     const dayNum = Number(fDay);
     const amountNum = Number(fAmt);
@@ -1491,7 +1495,7 @@ function App() {
     ) return false;
     const dayKey = String(dayNum);
     const upd={...dailyEntries,[dayKey]:[...(dailyEntries[dayKey]||[]),{id:mkid(),name:fName.trim(),amount:amountNum,category:fCategory,note:fNote.trim()}]};
-    setDaily(upd); saveMonth(null,upd,null); setFName(""); setFAmt(""); setFNote(""); setNoteOpen(false); setFCategory(CATEGORIES[0]); setExpDay(dayKey);
+    setDaily(upd); saveMonth(null,upd,null); setFName(""); setFAmt(""); setFNote(""); setFCategory(CATEGORIES[0]); setExpDay(dayKey);
     setTimeout(()=>dailyNameRef.current?.focus(),0);
     return true;
   };
@@ -1949,30 +1953,94 @@ function App() {
     </div>
 
     {modal&&(
-      <div className="overlay" onClick={e=>e.target.className==="overlay"&&setModal(null)}>
-        <div className="modal">
-          <div className="modal-title">เพิ่มรายจ่าย</div><button className="modal-close" aria-label="ปิด" title="ปิด" onClick={()=>setModal(null)}>×</button>
-          <div className="modal-tabs">
-            <button className={`modal-tab${modalTab==="daily"?" active":""}`} onClick={()=>setModalTab("daily")}>รายวัน</button>
-            <button className={`modal-tab${modalTab==="fixed"?" active":""}`} onClick={()=>setModalTab("fixed")}>ประจำเดือน</button>
-          </div>
-          {modalTab==="daily"?(<>
-            <div className="mobile-form-row">
-              <div className="form-group"><label className="form-label">วันที่</label><input className="form-input" type="number" min="1" max={days} value={fDay} onChange={e=>setFDay(e.target.value)} ref={dailyDayRef} enterKeyHint="next" onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();dailyNameRef.current?.focus();}}}/></div>
-              <div className="form-group"><label className="form-label">หมวดหมู่</label><select className="form-input" value={fCategory} onChange={e=>setFCategory(e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
+      <div className="overlay" onClick={e=>e.target.classList?.contains("overlay")&&setModal(null)}>
+        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="expense-modal-title">
+          <div className="modal-head">
+            <div className="modal-title" id="expense-modal-title">เพิ่มรายจ่าย</div>
+            <div className="modal-head-actions" aria-label="การทำงานของฟอร์ม">
+              <button
+                className="modal-icon-btn cancel"
+                aria-label="ยกเลิก"
+                title="ยกเลิก"
+                onClick={()=>setModal(null)}
+              >×</button>
+              <button
+                className="modal-icon-btn save"
+                aria-label={modalTab==="daily"?"บันทึกรายจ่าย":"เพิ่มรายจ่ายประจำ"}
+                title={modalTab==="daily"?"บันทึก":"เพิ่ม"}
+                disabled={modalTab==="daily"
+                  ? !(Number.isInteger(Number(fDay)) && Number(fDay)>=1 && Number(fDay)<=days && fName.trim() && fAmt && Number.isFinite(Number(fAmt)) && Number(fAmt)>=0)
+                  : !(fxName.trim() && fxAmt)
+                }
+                onClick={()=>{ modalTab==="daily" ? addDaily() : addFixed(); }}
+              >✓</button>
             </div>
-            <div className="form-group"><label className="form-label">รายการ</label><input className="form-input" type="text" value={fName} onChange={e=>setFName(e.target.value)} placeholder="เช่น ข้าวมันไก่, ชา…" ref={dailyNameRef} enterKeyHint="next" onFocus={e=>scrollModalField(e.currentTarget)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();dailyAmtRef.current?.focus();}}}/></div>
-            <div className="form-group"><label className="form-label">จำนวนเงิน (฿)</label><input className="form-input" type="number" inputMode="decimal" value={fAmt} onChange={e=>setFAmt(e.target.value)} placeholder="0" ref={dailyAmtRef} enterKeyHint="done" onFocus={e=>scrollModalField(e.currentTarget)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addDaily();}}}/></div>
-            <button type="button" className="modal-note-toggle" onClick={()=>setNoteOpen(v=>!v)} aria-expanded={noteOpen}>
-              <span>📝 หมายเหตุ <span style={{fontWeight:400,color:'#9CA3AF'}}>(ไม่บังคับ)</span></span>
-              <span className="note-hint">{noteOpen ? "ซ่อน" : (fNote ? "มีข้อความ" : "เพิ่มได้")}&nbsp;⌄</span>
-            </button>
-            {noteOpen&&<div className="modal-note-wrap"><div className="form-group"><input className="form-input modal-note-input" type="text" value={fNote} onChange={e=>setFNote(e.target.value)} placeholder="เช่น โปร 1 แถม 1, ซื้อเข้าบ้าน…" enterKeyHint="done" onFocus={e=>scrollModalField(e.currentTarget)}/></div></div>}
-            <div className="btn-row"><button className="btn-cancel" onClick={()=>setModal(null)}>ยกเลิก</button><button className="btn-primary" onClick={addDaily}>บันทึก</button></div>
+            <div className="modal-tabs">
+              <button className={`modal-tab${modalTab==="daily"?" active":""}`} onClick={()=>setModalTab("daily")}>รายวัน</button>
+              <button className={`modal-tab${modalTab==="fixed"?" active":""}`} onClick={()=>setModalTab("fixed")}>ประจำเดือน</button>
+            </div>
+          </div>
+
+          {modalTab==="daily"?(<>
+            <div className="modal-body">
+              <div className="modal-meta-grid">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="expense-day">วันที่</label>
+                  <input id="expense-day" className="form-input" type="number" inputMode="numeric" min="1" max={days} value={fDay} onChange={e=>setFDay(e.target.value)}/>
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="expense-category">หมวดหมู่</label>
+                  <select id="expense-category" className="form-input" value={fCategory} onChange={e=>setFCategory(e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="expense-name">รายการ</label>
+                <input id="expense-name" className="form-input" type="text" value={fName} onChange={e=>setFName(e.target.value)} placeholder="เช่น ข้าวมันไก่, ชา…" ref={dailyNameRef}/>
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="expense-amount">จำนวนเงิน (฿)</label>
+                <input
+                  id="expense-amount"
+                  className="form-input"
+                  type="number"
+                  inputMode="decimal"
+                  enterKeyHint="done"
+                  value={fAmt}
+                  onChange={e=>setFAmt(e.target.value)}
+                  placeholder="0"
+                  onKeyDown={e=>{
+                    if(e.key==="Enter"){
+                      e.preventDefault();
+                      addDaily();
+                    }
+                  }}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="expense-note">หมายเหตุ <span style={{fontWeight:400,color:"#98A2B3"}}>(ไม่บังคับ)</span></label>
+                <input id="expense-note" className="form-input" type="text" value={fNote} onChange={e=>setFNote(e.target.value)} placeholder="เช่น โปร 1 แถม 1, ซื้อเข้าบ้าน…"/>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={()=>setModal(null)}>ยกเลิก</button>
+              <button className="btn-primary" onClick={addDaily}>บันทึก</button>
+            </div>
           </>):(<>
-            <div className="form-group"><label className="form-label">ชื่อรายจ่าย</label><input className="form-input" type="text" value={fxName} onChange={e=>setFxName(e.target.value)} placeholder="เช่น Netflix, ค่าน้ำ…"/></div>
-            <div className="form-group"><label className="form-label">จำนวนเงิน (฿)</label><input className="form-input" type="number" value={fxAmt} onChange={e=>setFxAmt(e.target.value)} placeholder="0"/></div>
-            <div className="btn-row"><button className="btn-cancel" onClick={()=>setModal(null)}>ยกเลิก</button><button className="btn-primary" onClick={addFixed}>เพิ่ม</button></div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label" htmlFor="fixed-name">ชื่อรายจ่าย</label>
+                <input id="fixed-name" className="form-input" type="text" value={fxName} onChange={e=>setFxName(e.target.value)} placeholder="เช่น Netflix, ค่าน้ำ…"/>
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="fixed-amount">จำนวนเงิน (฿)</label>
+                <input id="fixed-amount" className="form-input" type="number" inputMode="decimal" value={fxAmt} onChange={e=>setFxAmt(e.target.value)} placeholder="0"/>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={()=>setModal(null)}>ยกเลิก</button>
+              <button className="btn-primary" onClick={addFixed}>เพิ่ม</button>
+            </div>
           </>)}
         </div>
       </div>
