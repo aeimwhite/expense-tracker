@@ -553,7 +553,7 @@ nav.bottom-nav button,.bottom-nav button{
 .month-table td.pos{color:#059669;}.month-table td.neg{color:#DC2626;}
 .month-table th:nth-child(1),.month-table td:nth-child(1){width:16%;}
 .month-table th:nth-child(n+2),.month-table td:nth-child(n+2){width:21%;}
-.mbadge{display:inline-block;background:#EEF2EE;border-radius:6px;padding:2px 6px;font-size:clamp(10px,2.8vw,12px);font-weight:700;color:#1B4332;max-width:100%;box-sizing:border-box;}
+.mbadge{display:inline-block;background:#EEF2EE;border:0;border-radius:6px;padding:2px 6px;font-family:inherit;font-size:clamp(10px,2.8vw,12px);font-weight:700;color:#1B4332;max-width:100%;box-sizing:border-box;cursor:pointer;}
 .mbadge.active{background:#1B4332;color:#fff;}
 .fx-ov-item{display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid #F3F4F6;gap:8px;}
 .fx-ov-item:last-child{border-bottom:none;}
@@ -720,7 +720,7 @@ nav.bottom-nav button,.bottom-nav button{
 .nav-btn{width:44px;height:44px;border-radius:12px;}
 .nav-icon{font-size:20px;}
 .month-nav{gap:10px;}
-.month-btn{width:38px;height:38px;font-size:20px;}
+.month-btn{width:44px;height:44px;font-size:20px;}
 .month-label{font-size:22px;min-width:150px;}
 .income-row{font-size:14px;margin-top:7px;}
 .cards-row{gap:12px;padding:0 14px;margin-top:-30px;}
@@ -777,6 +777,17 @@ nav.bottom-nav button,.bottom-nav button{
 .nav-icon{font-size:18px;filter:grayscale(1);opacity:.65;}
 .nav-btn.active .nav-icon{filter:grayscale(1);opacity:.9;}
 .nav-label{background:#344054;}
+button:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+input[type="checkbox"]:focus-visible{
+  outline:3px solid #60A5FA;
+  outline-offset:3px;
+}
+.icon-del{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:36px;padding:0;border-radius:8px;}
+.icon-del:disabled{cursor:not-allowed;opacity:.4;}
+.day-header:focus-visible{position:relative;z-index:1;}
+@media(max-width:600px){.icon-del{min-width:40px;height:40px;}}
 </style>
 </head>
 <body>
@@ -1800,14 +1811,14 @@ function App() {
             <span className="header-title">💰 บันทึกรายจ่าย</span>
             <button className="add-btn" disabled={!monthDataReady || hydratedMonthKey!==monthKey} onClick={()=>{setModal(true);setModalTab("daily");}}>+ เพิ่มรายจ่าย</button>
           </div>
-          <div className="main-nav" aria-label="เมนูหลัก">
-            <button title="รายเดือน" className={`nav-btn${tab==="month"?" active":""}`} onClick={()=>setTab("month")}><span className="nav-icon">📅</span><span className="nav-label">รายเดือน</span></button>
-            <button title="ภาพรวม" className={`nav-btn${tab==="overview"?" active":""}`} onClick={()=>setTab("overview")}><span className="nav-icon">📊</span><span className="nav-label">ภาพรวม</span></button>
+          <div className="main-nav" role="navigation" aria-label="เมนูหลัก">
+            <button title="รายเดือน" aria-label="รายเดือน" aria-current={tab==="month"?"page":undefined} className={`nav-btn${tab==="month"?" active":""}`} onClick={()=>setTab("month")}><span className="nav-icon" aria-hidden="true">📅</span><span className="nav-label">รายเดือน</span></button>
+            <button title="ภาพรวม" aria-label="ภาพรวม" aria-current={tab==="overview"?"page":undefined} className={`nav-btn${tab==="overview"?" active":""}`} onClick={()=>setTab("overview")}><span className="nav-icon" aria-hidden="true">📊</span><span className="nav-label">ภาพรวม</span></button>
           </div>
           <div className="month-nav">
-            <button className="month-btn" onClick={prevMonth}>‹</button>
+            <button className="month-btn" aria-label="เดือนก่อนหน้า" onClick={prevMonth}>‹</button>
             <div className="month-label">{MONTH_FULL[month-1]} {year}</div>
-            <button className="month-btn" onClick={nextMonth}>›</button>
+            <button className="month-btn" aria-label="เดือนถัดไป" onClick={nextMonth}>›</button>
           </div>
           <div className="income-row">
             รายรับเดือนนี้:&nbsp;
@@ -1870,7 +1881,7 @@ function App() {
                       <Editable value={e.name} onSave={v=>saveSavingName(e.id,v)} isText style={{fontSize:13,fontWeight:600,color:"#374151"}}/>
                     </span>
                     <Editable value={e.amount} onSave={v=>saveSavingAmt(e.id,v)} prefix="฿" style={{fontSize:14,fontWeight:700,color:"#1B4332"}}/>
-                    <button className="icon-del" onClick={()=>delSavingItem(e.id)}>×</button>
+                    <button className="icon-del" aria-label={`ลบรายการออม ${e.name}`} title="ลบ" onClick={()=>delSavingItem(e.id)}>×</button>
                   </div>
                 ))}
               </div>
@@ -1903,7 +1914,7 @@ function App() {
           <div className="list-box two-col-fixed">
             {fixedExpenses.map(e=>(
               <div className="fixed-item" key={e.id}>
-                <input type="checkbox" className="fx-check" checked={!!paidFixed[e.id]} onChange={()=>togglePaid(e.id)}/>
+                <input type="checkbox" className="fx-check" checked={!!paidFixed[e.id]} aria-label={`${paidFixed[e.id]?"ยกเลิกสถานะจ่ายแล้ว":"ทำเครื่องหมายว่าจ่ายแล้ว"} ${e.name}`} onChange={()=>togglePaid(e.id)}/>
                 <span className="fx-name" style={{textDecoration:paidFixed[e.id]?"line-through":"none",opacity:paidFixed[e.id]?.5:1}}>
                   <Editable value={e.name} onSave={v=>saveFixedName(e.id,v)} isText style={{fontSize:14,fontWeight:500,color:"#374151"}}/>
                 </span>
@@ -1913,7 +1924,7 @@ function App() {
                 <span className="fx-amt">
                   <Editable value={e.amount} onSave={v=>saveFixedAmt(e.id,v)} prefix="฿" style={{fontSize:14,fontWeight:600,color:"#1B4332"}}/>
                 </span>
-                <button className="icon-del" onClick={()=>delFixed(e.id)}>×</button>
+                <button className="icon-del" aria-label={`ลบรายจ่ายประจำ ${e.name}`} title="ลบ" onClick={()=>delFixed(e.id)}>×</button>
               </div>
             ))}
             <div className="list-footer">
@@ -1931,8 +1942,8 @@ function App() {
             <span style={{fontSize:13,color:"#6B7280"}}>฿{fmt(totalVar)}</span>
           </div>
           <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-            <input className="form-input" style={{flex:"1 1 180px",padding:"8px 10px"}} value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="🔎 ค้นหารายการ / หมายเหตุ"/>
-            <select className="form-input" style={{flex:"0 1 180px",padding:"8px 10px"}} value={filterCategory} onChange={e=>setFilterCategory(e.target.value)}><option value="">ทุกหมวดหมู่</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
+            <input className="form-input" aria-label="ค้นหารายจ่ายรายวัน" style={{flex:"1 1 180px",padding:"8px 10px"}} value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="🔎 ค้นหารายการ / หมายเหตุ"/>
+            <select className="form-input" aria-label="กรองรายจ่ายตามหมวดหมู่" style={{flex:"0 1 180px",padding:"8px 10px"}} value={filterCategory} onChange={e=>setFilterCategory(e.target.value)}><option value="">ทุกหมวดหมู่</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
           </div>
           {invalidDays.length>0 && <div className="notice" role="status">⚠️ พบรายการวันที่ไม่ถูกต้อง ฿{fmt(invalidDayTotal)} — ยังรวมอยู่ในยอดรายจ่าย เลือกวันที่ที่ถูกต้องหรือลบรายการด้านล่าง รายการเหล่านี้แสดงแม้กำลังกรองข้อมูล</div>}
           {lastDeleted?.monthKey===monthKey&&<div className="notice" style={{justifyContent:"space-between"}}><span>ลบรายการแล้ว</span><button className="sm-btn" onClick={undoDelete}>↩️ ยกเลิกการลบ</button></div>}
@@ -1944,7 +1955,7 @@ function App() {
               const isOpen=invalidDay || expDay===String(d);
               return (
                 <div className="day-row" key={d}>
-                  <div className="day-header" onClick={()=>setExpDay(isOpen?null:String(d))}>
+                  <div className="day-header" role="button" tabIndex={0} aria-expanded={isOpen} aria-label={`${isOpen?"ปิด":"เปิด"}รายการวันที่ ${d} ${MONTH_FULL[month-1]}`} onClick={()=>setExpDay(isOpen?null:String(d))} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setExpDay(isOpen?null:String(d));}}}>
                     <div className={`day-num${Number(d)===todayDay?" today-n":""}`}>{d}</div>
                     <span className="day-lbl">{invalidDay?"⚠️ วันที่ไม่ถูกต้อง":MONTH_SHORT[month-1]} · {items.length} รายการ</span>
                     <span className="day-ttl">฿{fmt(dt)}</span>
@@ -1964,8 +1975,8 @@ function App() {
                           </span>
                           <span style={{display:"flex",alignItems:"center",gap:6}}>
                             <span className="di-amt"><Editable value={it.amount} onSave={v=>saveDailyAmt(String(d),idx,v)} prefix="฿" style={{fontSize:13,fontWeight:500,color:"#374151"}}/></span>
-                            <button className="icon-del" title={invalidDay?"แก้วันที่ก่อนทำซ้ำ":"ทำซ้ำ"} disabled={invalidDay} onClick={()=>duplicateDaily(String(d),idx)}>⧉</button>
-                            <button className="icon-del" title="ลบ" onClick={()=>delDaily(String(d),idx)}>×</button>
+                            <button className="icon-del" aria-label={invalidDay?`แก้วันที่ของ ${it.name} ก่อนทำซ้ำ`:`ทำซ้ำ ${it.name}`} title={invalidDay?"แก้วันที่ก่อนทำซ้ำ":"ทำซ้ำ"} disabled={invalidDay} onClick={()=>duplicateDaily(String(d),idx)}>⧉</button>
+                            <button className="icon-del" aria-label={`ลบ ${it.name}`} title="ลบ" onClick={()=>delDaily(String(d),idx)}>×</button>
                           </span>
                         </div>
                       ))}
@@ -1985,14 +1996,14 @@ function App() {
       {/* ═══ OVERVIEW TAB ═══ */}
       {tab==="overview"&&(<>
         <div className="ov-header">
-          <div className="main-nav" aria-label="เมนูหลัก">
-            <button title="รายเดือน" className={`nav-btn${tab==="month"?" active":""}`} onClick={()=>setTab("month")}><span className="nav-icon">📅</span><span className="nav-label">รายเดือน</span></button>
-            <button title="ภาพรวม" className={`nav-btn${tab==="overview"?" active":""}`} onClick={()=>setTab("overview")}><span className="nav-icon">📊</span><span className="nav-label">ภาพรวม</span></button>
+          <div className="main-nav" role="navigation" aria-label="เมนูหลัก">
+            <button title="รายเดือน" aria-label="รายเดือน" aria-current={tab==="month"?"page":undefined} className={`nav-btn${tab==="month"?" active":""}`} onClick={()=>setTab("month")}><span className="nav-icon" aria-hidden="true">📅</span><span className="nav-label">รายเดือน</span></button>
+            <button title="ภาพรวม" aria-label="ภาพรวม" aria-current={tab==="overview"?"page":undefined} className={`nav-btn${tab==="overview"?" active":""}`} onClick={()=>setTab("overview")}><span className="nav-icon" aria-hidden="true">📊</span><span className="nav-label">ภาพรวม</span></button>
           </div>
           <div className="month-nav" style={{marginBottom:4}}>
-            <button className="month-btn" onClick={()=>setOvYear(y=>y-1)}>‹</button>
+            <button className="month-btn" aria-label="ปีก่อนหน้า" onClick={()=>setOvYear(y=>y-1)}>‹</button>
             <div className="month-label">ภาพรวมปี {ovYear}</div>
-            <button className="month-btn" onClick={()=>setOvYear(y=>y+1)}>›</button>
+            <button className="month-btn" aria-label="ปีถัดไป" onClick={()=>setOvYear(y=>y+1)}>›</button>
           </div>
           <div style={{color:"#B7E4C7",fontSize:13}}>{activeMonths.length>0?`มีข้อมูล ${activeMonths.length} เดือน`:"ยังไม่มีข้อมูล"}</div>
         </div>
@@ -2037,7 +2048,7 @@ function App() {
                 <tbody>
                   {ovStats.filter(m=>m.hasData).map(ms=>(
                     <tr key={ms.month} onClick={()=>{setMonth(ms.month);setYear(ovYear);setTab("month");}}>
-                      <td><span className={`mbadge${ms.month===month&&ovYear===year?" active":""}`}>{MONTH_SHORT[ms.month-1]}</span></td>
+                      <td><button type="button" className={`mbadge${ms.month===month&&ovYear===year?" active":""}`} aria-label={`ดูรายละเอียด ${MONTH_FULL[ms.month-1]} ${ovYear}`} onClick={e=>{e.stopPropagation();setMonth(ms.month);setYear(ovYear);setTab("month");}}>{MONTH_SHORT[ms.month-1]}</button></td>
                       <td className="num">฿{fmt(ms.fx)}</td>
                       <td className="num">฿{fmt(ms.varExp)}</td>
                       <td className="num">฿{fmt(ms.total)}</td>
