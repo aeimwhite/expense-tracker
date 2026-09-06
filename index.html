@@ -915,6 +915,8 @@ const css = `
 .balance-card{border-radius:20px;padding:18px;box-shadow:0 8px 24px rgba(27,67,50,.18);}
 .balance-label{font-size:13px;}
 .balance-amount{font-size:30px;}
+.balance-context{color:rgba(255,255,255,.72);font-size:11px;line-height:1.5;margin-top:3px;}
+.balance-progress-head{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#D1FAE5;font-size:11px;font-weight:600;margin-top:13px;}
 .balance-row{gap:8px;margin-top:14px;}
 .balance-mini{border-radius:12px;padding:9px 10px;}
 .bm-label{font-size:10px;}
@@ -942,6 +944,7 @@ const css = `
   .cards-row{padding:0 12px;margin-top:-27px;}
   .balance-card{padding:16px;border-radius:18px;}
   .balance-amount{font-size:28px;}
+  .balance-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}
   .goal-card{padding:14px 16px;}
   .section{margin-left:12px;margin-right:12px;}
 }
@@ -1553,8 +1556,6 @@ function App() {
   const totalExp   = totalFixed + totalVar;
   const savings    = totalSavings;
   const goalPct    = income>0?Math.min(100,(totalSavings/income)*100):0;
-  const varBudget  = spendableBudget;
-  const budgetRemaining = remaining;
   const budgetPctRaw = spendableBudget>0 ? (totalVar/spendableBudget)*100 : 0;
   const budgetPct = Math.min(100, budgetPctRaw); // ใช้สำหรับความกว้าง progress bar เท่านั้น
   const daysInSelectedMonth = new Date(year, month, 0).getDate();
@@ -1865,25 +1866,21 @@ function App() {
 
         <div className="cards-row">
           <div className="balance-card">
-            <div style={{fontSize:12,fontWeight:700,color:"#D1FAE5",marginBottom:8}}>📌 งบใช้จ่ายเดือนนี้</div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
-              <div style={{fontSize:22,fontWeight:800,color:budgetRemaining<0?"#FCA5A5":"#fff"}}>฿{fmt(Math.abs(budgetRemaining))}{budgetRemaining<0&&" เกิน"}</div>
-              <span style={{fontSize:10,color:"#D1FAE5"}}>คำนวณอัตโนมัติ</span>
-            </div>
-            <div style={{fontSize:10,color:"#D1FAE5",marginBottom:7}}>รายรับ ฿{fmt(income)} − ออม ฿{fmt(totalSavings)} − รายจ่ายประจำ ฿{fmt(totalFixed)} · รายวันใช้ไป {budgetPct.toFixed(0)}%</div>
-            <div className="progress-bar" style={{background:"rgba(255,255,255,.15)",marginBottom:10}}><div className="progress-fill" style={{width:`${Math.min(100,budgetPct)}%`,background:budgetPctRaw>100?"#FCA5A5":budgetPctRaw>=80?"#FBBF24":"#B7E4C7"}}/></div>
-            <div className="balance-label">💵 เงินคงเหลือที่จ่ายได้อีก</div>
+            <div className="balance-label">💵 เงินคงเหลือใช้ได้เดือนนี้</div>
             <div className="balance-amount" style={{color:remaining<0?"#FCA5A5":"#fff"}}>
               ฿{fmt(Math.abs(remaining))}{remaining<0&&<span style={{fontSize:14,marginLeft:6}}>⚠️ เกินงบ</span>}
             </div>
-            <div className="balance-sub">รายได้ ฿{fmt(income)} − เงินออม ฿{fmt(totalSavings)} − รายจ่ายประจำ ฿{fmt(totalFixed)} − รายวัน ฿{fmt(totalVar)}</div>
+            <div className="balance-context">หลังหักเงินออม รายจ่ายประจำที่จ่ายแล้ว และรายจ่ายรายวัน</div>
+            <div className="balance-progress-head">
+              <span>ใช้งบรายวันแล้ว</span>
+              <span>{budgetPct.toFixed(0)}%</span>
+            </div>
+            <div className="progress-bar" style={{background:"rgba(255,255,255,.15)",marginTop:6}}><div className="progress-fill" style={{width:`${Math.min(100,budgetPct)}%`,background:budgetPctRaw>100?"#FCA5A5":budgetPctRaw>=80?"#FBBF24":"#B7E4C7"}}/></div>
             <div className="balance-row">
-              <div className="balance-mini"><div className="bm-label">รายจ่ายคงที่</div><div className="bm-val">฿{fmt(totalFixed)}</div></div>
+              <div className="balance-mini"><div className="bm-label">รายรับ</div><div className="bm-val">฿{fmt(income)}</div></div>
+              <div className="balance-mini"><div className="bm-label">เงินออม</div><div className="bm-val">฿{fmt(totalSavings)}</div></div>
+              <div className="balance-mini"><div className="bm-label">ประจำที่จ่ายแล้ว</div><div className="bm-val">฿{fmt(totalFixed)}</div></div>
               <div className="balance-mini"><div className="bm-label">รายวัน</div><div className="bm-val">฿{fmt(totalVar)}</div></div>
-              <div className="balance-mini">
-                <div className="bm-label">งบรายวันเหลือ</div>
-                <div className="bm-val" style={{color:varBudget-totalVar<0?"#FCA5A5":"#fff"}}>฿{fmt(varBudget-totalVar)}</div>
-              </div>
             </div>
             <div style={{marginTop:12,padding:"12px 14px",borderRadius:14,background:"rgba(255,255,255,.10)",border:"1px solid rgba(255,255,255,.10)"}}>
               <div style={{fontSize:11,color:"#D1FAE5",fontWeight:700}}>{isCurrentMonth?"📅 งบวันนี้ (คงที่)":"📅 งบเฉลี่ยต่อวัน"}</div>
