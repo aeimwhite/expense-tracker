@@ -482,7 +482,7 @@ nav.bottom-nav button,.bottom-nav button{
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
 const DEFAULT_FIXED = [
   { id:"rent",    name:"ค่าห้อง",       amount:3600 , category:"📦 อื่น ๆ", checked:false},
@@ -736,7 +736,9 @@ const css = `
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
-  padding:2px 20px 6px;
+  padding:2px 20px calc(18px + env(safe-area-inset-bottom));
+  scroll-padding-top:12px;
+  scroll-padding-bottom:24px;
 }
 .modal-actions{
   flex:0 0 auto;
@@ -759,11 +761,33 @@ const css = `
 .form-label{font-size:13px;font-weight:600;color:#374151;margin-bottom:5px;display:block;}
 .form-input{width:100%;min-height:46px;border:1.5px solid #E5E7EB;border-radius:10px;padding:10px 13px;font-family:'Sarabun',sans-serif;font-size:15px;color:#1F2937;outline:none;background:#fff;}
 .form-input:focus{border-color:#1B4332;box-shadow:0 0 0 2px rgba(27,67,50,.08);}
+.amount-label-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:5px;
+}
+.amount-label-row .form-label{margin-bottom:0;}
+.note-inline-btn{
+  flex:0 0 auto;
+  border:0;
+  background:transparent;
+  color:#1B4332;
+  font-family:'Sarabun',sans-serif;
+  font-size:12px;
+  font-weight:700;
+  padding:4px 2px;
+  cursor:pointer;
+}
+.note-inline-btn:hover{text-decoration:underline;}
+.note-inline-btn:focus-visible{outline:2px solid rgba(27,67,50,.22);outline-offset:2px;border-radius:4px;}
 .btn-row{display:flex;gap:10px;margin-top:6px;}
 .btn-primary{flex:1;min-height:48px;background:#1B4332;color:#fff;border:none;border-radius:12px;padding:12px 14px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:700;cursor:pointer;}
 .btn-cancel{min-height:48px;}
 @media (max-width:768px){
   .modal-actions{display:none;}
+  .modal-body{padding-bottom:calc(116px + env(safe-area-inset-bottom));}
 }
 @media (min-width:769px){
   .overlay{align-items:center;padding:24px;}
@@ -894,6 +918,10 @@ function App() {
   const [filterCategory, setFilterCategory] = useState("");
   const [fCategory, setFCategory] = useState(CATEGORIES[0]);
   const [fNote, setFNote] = useState("");
+  const [showNote, setShowNote] = useState(false);
+  const noteRef = useRef(null);
+  const modalBodyRef = useRef(null);
+  const amountInputRef = useRef(null);
   const [lastDeleted, setLastDeleted] = useState(null);
 
   // Keep the modal above the mobile keyboard without moving the whole overlay.
@@ -923,6 +951,46 @@ function App() {
       document.documentElement.style.removeProperty("--keyboard-inset");
     };
   }, []);
+
+  const ensureFieldVisible = useCallback((el) => {
+    const body = modalBodyRef.current;
+    if (!body || !el || typeof el.getBoundingClientRect !== "function") return;
+
+    requestAnimationFrame(() => {
+      const bodyRect = body.getBoundingClientRect();
+      const fieldRect = el.getBoundingClientRect();
+      const topGap = 12;
+      const bottomGap = 18;
+
+      if (fieldRect.top < bodyRect.top + topGap) {
+        body.scrollTop -= (bodyRect.top + topGap - fieldRect.top);
+      } else if (fieldRect.bottom > bodyRect.bottom - bottomGap) {
+        body.scrollTop += (fieldRect.bottom - (bodyRect.bottom - bottomGap));
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!modal) return;
+    const vv = window.visualViewport;
+    const syncFocusedField = () => {
+      const active = document.activeElement;
+      if (active && modalBodyRef.current?.contains(active)) {
+        setTimeout(() => ensureFieldVisible(active), 80);
+      }
+    };
+
+    syncFocusedField();
+    vv?.addEventListener("resize", syncFocusedField);
+    vv?.addEventListener("scroll", syncFocusedField);
+    window.addEventListener("resize", syncFocusedField);
+
+    return () => {
+      vv?.removeEventListener("resize", syncFocusedField);
+      vv?.removeEventListener("scroll", syncFocusedField);
+      window.removeEventListener("resize", syncFocusedField);
+    };
+  }, [modal, ensureFieldVisible]);
 
   // Escape closes the active modal on hardware keyboard / desktop.
   useEffect(() => {
@@ -1499,6 +1567,11 @@ function App() {
     setTimeout(()=>dailyNameRef.current?.focus(),0);
     return true;
   };
+  const submitDaily = ()=>{
+    const saved = addDaily();
+    if(saved) setShowNote(false);
+    return saved;
+  };
   const addFixed = ()=>{
     if(!fxName.trim()||!fxAmt) return;
     const nf=[...fixedExpenses,{id:mkid(),name:fxName.trim(),amount:Number(fxAmt)}];
@@ -1972,7 +2045,7 @@ function App() {
                   ? !(Number.isInteger(Number(fDay)) && Number(fDay)>=1 && Number(fDay)<=days && fName.trim() && fAmt && Number.isFinite(Number(fAmt)) && Number(fAmt)>=0)
                   : !(fxName.trim() && fxAmt)
                 }
-                onClick={()=>{ modalTab==="daily" ? addDaily() : addFixed(); }}
+                onClick={()=>{ modalTab==="daily" ? submitDaily() : addFixed(); }}
               >✓</button>
             </div>
             <div className="modal-tabs">
@@ -1982,26 +2055,42 @@ function App() {
           </div>
 
           {modalTab==="daily"?(<>
-            <div className="modal-body">
+            <div className="modal-body" ref={modalBodyRef}>
               <div className="modal-meta-grid">
                 <div className="form-group">
                   <label className="form-label" htmlFor="expense-day">วันที่</label>
-                  <input id="expense-day" className="form-input" type="number" inputMode="numeric" min="1" max={days} value={fDay} onChange={e=>setFDay(e.target.value)}/>
+                  <input id="expense-day" className="form-input" type="number" inputMode="numeric" min="1" max={days} value={fDay} onChange={e=>setFDay(e.target.value)} onFocus={e=>ensureFieldVisible(e.currentTarget)}/>
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="expense-category">หมวดหมู่</label>
-                  <select id="expense-category" className="form-input" value={fCategory} onChange={e=>setFCategory(e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
+                  <select id="expense-category" className="form-input" value={fCategory} onChange={e=>setFCategory(e.target.value)} onFocus={e=>ensureFieldVisible(e.currentTarget)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
                 </div>
               </div>
 
               <div className="form-group">
                 <label className="form-label" htmlFor="expense-name">รายการ</label>
-                <input id="expense-name" className="form-input" type="text" value={fName} onChange={e=>setFName(e.target.value)} placeholder="เช่น ข้าวมันไก่, ชา…" ref={dailyNameRef}/>
+                <input id="expense-name" className="form-input" type="text" value={fName} onChange={e=>setFName(e.target.value)} placeholder="เช่น ข้าวมันไก่, ชา…" ref={dailyNameRef} onFocus={e=>ensureFieldVisible(e.currentTarget)}/> 
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="expense-amount">จำนวนเงิน (฿)</label>
+                <div className="amount-label-row">
+                  <label className="form-label" htmlFor="expense-amount">จำนวนเงิน (฿)</label>
+                  {!(showNote || !!fNote.trim()) && (
+                    <button
+                      type="button"
+                      className="note-inline-btn"
+                      onClick={()=>{
+                        setShowNote(true);
+                        setTimeout(()=>{
+                          noteRef.current?.scrollIntoView({block:"nearest",behavior:"smooth"});
+                          noteRef.current?.focus();
+                        },0);
+                      }}
+                    >+ หมายเหตุ</button>
+                  )}
+                </div>
                 <input
                   id="expense-amount"
+                  ref={amountInputRef}
                   className="form-input"
                   type="number"
                   inputMode="decimal"
@@ -2009,32 +2098,44 @@ function App() {
                   value={fAmt}
                   onChange={e=>setFAmt(e.target.value)}
                   placeholder="0"
+                  onFocus={e=>ensureFieldVisible(e.currentTarget)}
                   onKeyDown={e=>{
-                    if(e.key==="Enter"){
+                    if(e.key==="Enter" && String(fAmt).trim()!==""){
                       e.preventDefault();
-                      addDaily();
+                      submitDaily();
                     }
                   }}
                 />
               </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="expense-note">หมายเหตุ <span style={{fontWeight:400,color:"#98A2B3"}}>(ไม่บังคับ)</span></label>
-                <input id="expense-note" className="form-input" type="text" value={fNote} onChange={e=>setFNote(e.target.value)} placeholder="เช่น โปร 1 แถม 1, ซื้อเข้าบ้าน…"/>
-              </div>
+              {(showNote || !!fNote.trim()) && (
+                <div className="form-group">
+                  <label className="form-label" htmlFor="expense-note">หมายเหตุ <span style={{fontWeight:400,color:"#98A2B3"}}>(ไม่บังคับ)</span></label>
+                  <input
+                    id="expense-note"
+                    ref={noteRef}
+                    className="form-input"
+                    type="text"
+                    onFocus={e=>ensureFieldVisible(e.currentTarget)}
+                    value={fNote}
+                    onChange={e=>setFNote(e.target.value)}
+                    placeholder="เช่น โปร 1 แถม 1, ซื้อเข้าบ้าน…"
+                  />
+                </div>
+              )}
             </div>
             <div className="modal-actions">
               <button className="btn-cancel" onClick={()=>setModal(null)}>ยกเลิก</button>
-              <button className="btn-primary" onClick={addDaily}>บันทึก</button>
+              <button className="btn-primary" onClick={submitDaily}>บันทึก</button>
             </div>
           </>):(<>
-            <div className="modal-body">
+            <div className="modal-body" ref={modalBodyRef}>
               <div className="form-group">
                 <label className="form-label" htmlFor="fixed-name">ชื่อรายจ่าย</label>
-                <input id="fixed-name" className="form-input" type="text" value={fxName} onChange={e=>setFxName(e.target.value)} placeholder="เช่น Netflix, ค่าน้ำ…"/>
+                <input id="fixed-name" className="form-input" type="text" value={fxName} onChange={e=>setFxName(e.target.value)} placeholder="เช่น Netflix, ค่าน้ำ…" onFocus={e=>ensureFieldVisible(e.currentTarget)}/> 
               </div>
               <div className="form-group">
                 <label className="form-label" htmlFor="fixed-amount">จำนวนเงิน (฿)</label>
-                <input id="fixed-amount" className="form-input" type="number" inputMode="decimal" value={fxAmt} onChange={e=>setFxAmt(e.target.value)} placeholder="0"/>
+                <input id="fixed-amount" className="form-input" type="number" inputMode="decimal" value={fxAmt} onChange={e=>setFxAmt(e.target.value)} placeholder="0" onFocus={e=>ensureFieldVisible(e.currentTarget)}/> 
               </div>
             </div>
             <div className="modal-actions">
