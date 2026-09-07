@@ -1177,6 +1177,7 @@ function App() {
   const syncTimerRef = useRef(null);
   const syncInFlightRef = useRef(false);
   const syncPendingRef = useRef(false);
+  const lastReturnSyncRef = useRef(0);
   const syncQueueRef = useRef(new Map(Object.entries((lsGet("raijai_outbox_v1")||{}).records||{})));
   const outboxEndpointRef = useRef((lsGet("raijai_outbox_v1")||{}).endpoint||"");
   const [pendingSyncCount, setPendingSyncCount] = useState(()=>syncQueueRef.current.size);
@@ -1385,6 +1386,25 @@ function App() {
     return records;
   };
 
+  const comparableRecord = value => {
+    if(Array.isArray(value)) return value.map(comparableRecord);
+    if(!isRecord(value)) return value;
+    return Object.keys(value).filter(key=>key!=="_updatedAt").sort().reduce((result,key)=>{
+      result[key]=comparableRecord(value[key]);
+      return result;
+    },{});
+  };
+  const sameRecordContent = (a,b) => JSON.stringify(comparableRecord(a))===JSON.stringify(comparableRecord(b));
+  const preserveBeforeCloudReplace = (key,data) => {
+    if(!isRecord(data)) return true;
+    const previous=lsGet("raijai_sync_recovery_v1");
+    const records=isRecord(previous?.records)?previous.records:{};
+    return lsSet("raijai_sync_recovery_v1",{
+      savedAt:Date.now(),
+      records:{...records,[key]:data}
+    });
+  };
+
   const persistOutbox = () => {
     const saved=lsSet("raijai_outbox_v1",{
       endpoint:outboxEndpointRef.current, records:Object.fromEntries(syncQueueRef.current)
@@ -1398,12 +1418,14 @@ function App() {
     if(syncInFlightRef.current) return false;
     syncInFlightRef.current=true; setSyncBusy(true); setSyncStatus("กำลังซิงก์…");
     let succeeded=false;
+    const pushedThisRun=new Map();
     try{
       if(syncQueueRef.current.size && outboxEndpointRef.current!==endpoint) throw new Error("มีข้อมูลรอส่งไป URL เดิม กรุณาซิงก์ URL เดิมก่อนเปลี่ยน");
       // Only explicit edits/imports are uploaded; old unmarked local months remain read-only.
       while(syncQueueRef.current.size){
         const [key,data]=syncQueueRef.current.entries().next().value;
         if(!await cloudPost(key,data,endpoint)) throw new Error("ส่งข้อมูลไม่สำเร็จ เก็บรายการรอส่งไว้แล้ว กดซิงก์เพื่อลองใหม่");
+        pushedThisRun.set(key,data);
         remoteRecordsRef.current[key]={data,updatedAt:data._updatedAt};
         if(syncQueueRef.current.get(key)===data){
           syncQueueRef.current.delete(key);
@@ -1414,10 +1436,13 @@ function App() {
       const r=await fetchCloud(endpoint+(endpoint.includes("?")?"&":"?")+"action=load&_="+Date.now(),{redirect:"follow",cache:"no-store"});
       const j=await r.json();
       if(!j?.ok || !isRecord(j.records)) throw new Error("อ่านข้อมูลไม่สำเร็จ ตรวจ URL / สิทธิ์ / อินเทอร์เน็ต");
-      const remote=j.records;
+      // A just-saved record wins within this request even if Sheets briefly returns
+      // its previous value immediately after the successful POST.
+      const remote={...j.records};
+      for(const [key,data] of pushedThisRun) remote[key]={data,updatedAt:data._updatedAt};
       remoteRecordsRef.current=remote;
       const cloudMonthCount=Object.keys(remote).filter(isMonthStorageKey).length;
-      let changed=false, pulledMonths=0;
+      let changed=false, pulledMonths=0, recoveryCount=0;
       for(const [key,rr] of Object.entries(remote)){
         if(key!=="raijai_config" && !isMonthStorageKey(key)) continue;
         const data=decodeCloudData(rr?.data);
@@ -1426,9 +1451,15 @@ function App() {
         // Edits made while the GET was running always stay local and in the outbox.
         if(syncQueueRef.current.has(key) || JSON.stringify(local)!==JSON.stringify(beforeLoad[key]||null)) continue;
         const rt=Number(rr.updatedAt)||Number(data._updatedAt)||0;
-        const lt=Number(local?._updatedAt)||0;
-        if(!local || rt>lt){
-          if(!lsSet(key,{...data,_updatedAt:rt})) throw new Error("บันทึกข้อมูลที่ดึงมาไม่สำเร็จ");
+        const cloudData={...data,_updatedAt:rt};
+        // With no pending local edit, Cloud is authoritative. A local timestamp alone
+        // must never let an empty/stale PC record block the real Cloud month.
+        if(!local || !sameRecordContent(local,cloudData)){
+          if(local){
+            if(!preserveBeforeCloudReplace(key,local)) throw new Error("เก็บสำเนาก่อนดึงข้อมูลไม่สำเร็จ จึงยังไม่แทนข้อมูลในเครื่อง");
+            recoveryCount++;
+          }
+          if(!lsSet(key,cloudData)) throw new Error("บันทึกข้อมูลที่ดึงมาไม่สำเร็จ");
           changed=true;
           if(isMonthStorageKey(key)) pulledMonths++;
         }
@@ -1445,7 +1476,7 @@ function App() {
       const completedAt=Date.now();
       try{localStorage.setItem("raijai_last_sync_at",String(completedAt));}catch(e){}
       setLastSyncAt(completedAt);
-      setSyncStatus(syncQueueRef.current.size?"มีข้อมูลใหม่รอซิงก์…":`✅ ซิงก์แล้ว • พบ ${cloudMonthCount} เดือนบนคลาวด์${pulledMonths?` • อัปเดต ${pulledMonths} เดือน`:""}`);
+      setSyncStatus(syncQueueRef.current.size?"มีข้อมูลใหม่รอซิงก์…":`✅ ซิงก์แล้ว • พบ ${cloudMonthCount} เดือนบนคลาวด์${pulledMonths?` • อัปเดต ${pulledMonths} เดือน`:""}${recoveryCount?` • เก็บสำเนาก่อนแทน ${recoveryCount} รายการ`:""}`);
       return true;
     }catch(error){setSyncStatus("❌ "+error.message);return false;}
     finally{
@@ -1478,6 +1509,26 @@ function App() {
     } else {
       setSyncReady(true);
     }
+  },[]);
+
+  // Pull the latest Cloud state when the user returns to this tab/window.
+  // Throttle duplicate focus + visibility events and preserve the existing outbox rules.
+  useEffect(()=>{
+    const syncOnReturn=()=>{
+      if(document.visibilityState!=="visible" || syncInFlightRef.current) return;
+      const now=Date.now();
+      if(now-lastReturnSyncRef.current<5000) return;
+      const u=String(localStorage.getItem("raijai_sync_url")||"").trim();
+      if(!validSyncUrl(u)) return;
+      lastReturnSyncRef.current=now;
+      syncNow(u,true);
+    };
+    document.addEventListener("visibilitychange",syncOnReturn);
+    window.addEventListener("focus",syncOnReturn);
+    return ()=>{
+      document.removeEventListener("visibilitychange",syncOnReturn);
+      window.removeEventListener("focus",syncOnReturn);
+    };
   },[]);
 
   // Hydrate the selected month from Cloud first, then fall back to localStorage.
@@ -1562,25 +1613,29 @@ function App() {
 
       if(cancelled || activeMonthKeyRef.current !== loadingKey) return;
 
-      const localTs = Number(localMd?._updatedAt)||0;
-      const remoteHasData = !!remoteMd && !isEmptyMonthRecord(remoteMd);
-      const localHasData = !!localMd && !isEmptyMonthRecord(localMd);
       const localRecordExists = !!localMd;
 
       // Any existing Cloud record is authoritative for that month, including a
       // legitimately empty record created by the user after deleting its last item.
-      // Only prefer local when it is newer than Cloud.
+      // Local wins only when it is explicitly queued for upload.
       if(remoteRecordExists) {
         const rData = {...remoteMd,_updatedAt:remoteTs||Number(remoteMd._updatedAt)||Date.now()};
-        const localTime = Number(localMd?._updatedAt)||0;
-        const remoteTime = Number(rData?._updatedAt)||0;
 
-        if(syncQueueRef.current.has(loadingKey) || (localRecordExists && localTime >= remoteTime)) {
+        if(syncQueueRef.current.has(loadingKey)) {
           applyMonth(localMd,false);
           return;
         }
 
         const cloudData = rData;
+        if(localRecordExists && sameRecordContent(localMd,cloudData)){
+          applyMonth(localMd,false);
+          return;
+        }
+        if(localRecordExists && !preserveBeforeCloudReplace(loadingKey,localMd)){
+          setSyncStatus("❌ เก็บสำเนาก่อนดึงข้อมูลไม่สำเร็จ จึงยังใช้ข้อมูลในเครื่อง");
+          applyMonth(localMd,false);
+          return;
+        }
         try{ sessionStorage.setItem(`raijai_cloud_authoritative_${loadingKey}`,"1"); }catch(e){}
         lsSet(loadingKey,cloudData);
         syncQueueRef.current.delete(loadingKey);
@@ -1703,6 +1758,17 @@ function App() {
     for(const [key,value] of Object.entries(raw)) if(isMonthStorageKey(key)) data.months[key]=JSON.parse(value);
     const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
     const a=document.createElement("a");a.href=url;a.download="backup-before-import.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+  const exportBeforeSync = () => {
+    const recovery=lsGet("raijai_sync_recovery_v1");
+    if(!isRecord(recovery?.records)){alert("ไม่มีสำเนาก่อน Sync");return;}
+    const data={app:"บันทึกรายจ่าย",version:1,exportedAt:new Date().toISOString(),config:null,months:{}};
+    for(const [key,value] of Object.entries(recovery.records)){
+      if(key==="raijai_config"&&isRecord(value)) data.config=value;
+      if(isMonthStorageKey(key)&&isRecord(value)) data.months[key]=value;
+    }
+    const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+    const a=document.createElement("a");a.href=url;a.download="backup-before-sync.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
   const importBackup = file => {
     if(!file) return;
@@ -2509,6 +2575,7 @@ function App() {
           </div>}
         </div>
         <div className="backup-row">
+          {lsGet("raijai_sync_recovery_v1") && <button className="backup-btn" onClick={exportBeforeSync}>สำเนาก่อน Sync</button>}
           {lsGet("raijai_before_import_v1") && <button className="backup-btn" onClick={exportBeforeImport}>สำเนาก่อนนำเข้าครั้งล่าสุด</button>}
           <button className="backup-btn" onClick={exportBackup}>Export / สำรองข้อมูล</button>
           <label className="backup-btn" style={{textAlign:"center"}}>Import / กู้คืนข้อมูล<input type="file" accept="application/json,.json" style={{display:"none"}} onChange={e=>{importBackup(e.target.files[0]);e.target.value="";}}/></label>
