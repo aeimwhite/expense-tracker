@@ -638,7 +638,7 @@ nav.bottom-nav button,.bottom-nav button{
   .modal-actions{padding-left:14px;padding-right:14px;}
   .modal-meta-grid{grid-template-columns:100px minmax(0,1fr);gap:8px;}
 }
-.sync-panel{margin:18px 16px 0;background:#fff;border:1px solid #D1FAE5;border-radius:14px;padding:14px 16px;box-shadow:0 1px 6px rgba(0,0,0,.04);}.sync-title{font-size:14px;font-weight:700;color:#1B4332;margin-bottom:5px;}.sync-desc{font-size:11px;color:#6B7280;line-height:1.55;margin-bottom:10px;}.sync-row{display:flex;gap:8px;align-items:center;}.sync-input{flex:1;min-width:0;border:1.5px solid #D1D5DB;border-radius:9px;padding:9px 10px;font-family:'Sarabun',sans-serif;font-size:12px;outline:none;}.sync-input:focus{border-color:#1B4332;}.sync-status{font-size:11px;margin-top:8px;color:#6B7280;}.sync-status.ok{color:#047857;}.sync-status.err{color:#B91C1C;}.backup-row{display:flex;gap:8px;margin:12px 16px 0;}.backup-btn{flex:1;background:#fff;color:#1B4332;border:1px solid #D1FAE5;border-radius:10px;padding:10px 8px;font-family:'Sarabun',sans-serif;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.04);}.backup-btn:hover{background:#F0FDF4;}@media(max-width:600px){.sync-row{flex-direction:column;align-items:stretch;}.backup-row{flex-direction:column;}}
+.sync-panel{margin:18px 16px 0;background:#fff;border:1px solid #D1FAE5;border-radius:14px;padding:14px 16px;box-shadow:0 1px 6px rgba(0,0,0,.04);}.sync-title{font-size:14px;font-weight:700;color:#1B4332;margin-bottom:5px;}.sync-desc{font-size:11px;color:#6B7280;line-height:1.55;margin-bottom:10px;}.sync-row{display:flex;gap:8px;align-items:center;}.sync-input{flex:1;min-width:0;border:1.5px solid #D1D5DB;border-radius:9px;padding:9px 10px;font-family:'Sarabun',sans-serif;font-size:12px;outline:none;}.sync-input:focus{border-color:#1B4332;box-shadow:0 0 0 3px rgba(27,67,50,.1);}.sync-status{font-size:11px;margin-top:8px;color:#6B7280;}.sync-status.ok{color:#047857;}.sync-status.err{color:#B91C1C;}.sync-meta{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-top:8px;font-size:11px;color:#667085;}.sync-pending{color:#9A6700;font-weight:600;}.backup-row{display:flex;gap:8px;margin:12px 16px 0;}.backup-btn{flex:1;background:#fff;color:#1B4332;border:1px solid #D1FAE5;border-radius:10px;padding:10px 8px;font-family:'Sarabun',sans-serif;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.04);}.backup-btn:hover{background:#F0FDF4;}.backup-btn.sync-action{flex:0 0 auto;background:#1B4332;color:#fff;border-color:#1B4332;}.backup-btn.sync-action:hover{background:#143526;}.backup-btn.sync-action:disabled{cursor:not-allowed;opacity:.65;}@media(max-width:600px){.sync-row{flex-direction:column;align-items:stretch;}.sync-action{width:100%;}.backup-row{flex-direction:column;}}
 .btn-cancel{background:#F3F4F6;color:#374151;border:none;border-radius:12px;padding:14px 20px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:600;cursor:pointer;}
 
 /* ===== UI Polish v2 ===== */
@@ -1169,6 +1169,7 @@ function App() {
   const [syncUrl, setSyncUrl] = useState(()=>localStorage.getItem("raijai_sync_url")||"");
   const [syncStatus, setSyncStatus] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState(()=>Number(localStorage.getItem("raijai_last_sync_at"))||0);
   const [syncReady, setSyncReady] = useState(() => {
     const u = localStorage.getItem("raijai_sync_url") || "";
     return !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(String(u).trim());
@@ -1178,6 +1179,7 @@ function App() {
   const syncPendingRef = useRef(false);
   const syncQueueRef = useRef(new Map(Object.entries((lsGet("raijai_outbox_v1")||{}).records||{})));
   const outboxEndpointRef = useRef((lsGet("raijai_outbox_v1")||{}).endpoint||"");
+  const [pendingSyncCount, setPendingSyncCount] = useState(()=>syncQueueRef.current.size);
   const [recordsRevision, setRecordsRevision] = useState(0);
   // Cache the authoritative Cloud records loaded at bootstrap so month hydration
   // cannot fall back to stale local data or a later inconsistent response.
@@ -1383,9 +1385,13 @@ function App() {
     return records;
   };
 
-  const persistOutbox = () => lsSet("raijai_outbox_v1",{
-    endpoint:outboxEndpointRef.current, records:Object.fromEntries(syncQueueRef.current)
-  });
+  const persistOutbox = () => {
+    const saved=lsSet("raijai_outbox_v1",{
+      endpoint:outboxEndpointRef.current, records:Object.fromEntries(syncQueueRef.current)
+    });
+    setPendingSyncCount(syncQueueRef.current.size);
+    return saved;
+  };
   const syncNow = async (url=localStorage.getItem("raijai_sync_url")||"", quiet=false, bootstrap=false) => {
     const endpoint=String(url||"").trim();
     if(!validSyncUrl(endpoint)){ if(!quiet) setSyncStatus("❌ URL Apps Script ไม่ถูกต้อง"); return false; }
@@ -1401,7 +1407,7 @@ function App() {
         remoteRecordsRef.current[key]={data,updatedAt:data._updatedAt};
         if(syncQueueRef.current.get(key)===data){
           syncQueueRef.current.delete(key);
-          if(!persistOutbox()){syncQueueRef.current.set(key,data); throw new Error("บันทึกสถานะซิงก์ไม่สำเร็จ");}
+          if(!persistOutbox()){syncQueueRef.current.set(key,data);setPendingSyncCount(syncQueueRef.current.size);throw new Error("บันทึกสถานะซิงก์ไม่สำเร็จ");}
         }
       }
       const beforeLoad=collectLocalRecords();
@@ -1410,7 +1416,8 @@ function App() {
       if(!j?.ok || !isRecord(j.records)) throw new Error("อ่านข้อมูลไม่สำเร็จ ตรวจ URL / สิทธิ์ / อินเทอร์เน็ต");
       const remote=j.records;
       remoteRecordsRef.current=remote;
-      let changed=false, pulled=0;
+      const cloudMonthCount=Object.keys(remote).filter(isMonthStorageKey).length;
+      let changed=false, pulledMonths=0;
       for(const [key,rr] of Object.entries(remote)){
         if(key!=="raijai_config" && !isMonthStorageKey(key)) continue;
         const data=decodeCloudData(rr?.data);
@@ -1422,7 +1429,8 @@ function App() {
         const lt=Number(local?._updatedAt)||0;
         if(!local || rt>lt){
           if(!lsSet(key,{...data,_updatedAt:rt})) throw new Error("บันทึกข้อมูลที่ดึงมาไม่สำเร็จ");
-          changed=true; pulled++;
+          changed=true;
+          if(isMonthStorageKey(key)) pulledMonths++;
         }
       }
       if(changed){
@@ -1434,7 +1442,10 @@ function App() {
         setRecordsRevision(v=>v+1);
       }
       succeeded=true;
-      setSyncStatus(syncQueueRef.current.size?"มีข้อมูลใหม่รอซิงก์…":`✅ ซิงก์แล้ว${pulled?` • ดึง ${pulled}`:""}`);
+      const completedAt=Date.now();
+      try{localStorage.setItem("raijai_last_sync_at",String(completedAt));}catch(e){}
+      setLastSyncAt(completedAt);
+      setSyncStatus(syncQueueRef.current.size?"มีข้อมูลใหม่รอซิงก์…":`✅ ซิงก์แล้ว • พบ ${cloudMonthCount} เดือนบนคลาวด์${pulledMonths?` • อัปเดต ${pulledMonths} เดือน`:""}`);
       return true;
     }catch(error){setSyncStatus("❌ "+error.message);return false;}
     finally{
@@ -1443,12 +1454,15 @@ function App() {
     }
   };
 
-  const saveSyncUrl = () => {
+  const saveAndSync = async () => {
     const u=String(syncUrl||"").trim();
     if(!validSyncUrl(u)){ setSyncStatus("❌ วาง URL ที่ลงท้าย /exec จาก Google Apps Script"); return; }
     if(syncInFlightRef.current){setSyncStatus("กรุณารอซิงก์เสร็จก่อนเปลี่ยน URL");return;}
     if(syncQueueRef.current.size && outboxEndpointRef.current!==u){setSyncStatus("❌ มีข้อมูลรอส่งไป URL เดิม กรุณาซิงก์ให้สำเร็จก่อนเปลี่ยน");return;}
-    localStorage.setItem("raijai_sync_url",u); setSyncUrl(u); setSyncStatus("✅ บันทึก URL แล้ว กด ‘ซิงก์ตอนนี้’ ได้เลย");
+    try{localStorage.setItem("raijai_sync_url",u);}
+    catch(e){setSyncStatus("❌ บันทึก URL ในเครื่องไม่สำเร็จ");return;}
+    setSyncUrl(u);
+    await syncNow(u);
   };
 
   // เปิดเว็บให้แสดงข้อมูลจาก localStorage ทันที แล้วค่อยดึง Google Sheets เบื้องหลัง
@@ -2483,13 +2497,16 @@ function App() {
         <summary className="data-tools-summary"><LineIcon name="cloud"/>ข้อมูลและการสำรอง</summary>
         <div className="sync-panel">
           <div className="sync-title">Google Sync — ใช้ข้อมูลเดียวกันบน PC และมือถือ</div>
-          <div className="sync-desc">วาง URL ของ Google Apps Script Web App (ลงท้าย /exec) ครั้งเดียวต่ออุปกรณ์ หลังจากนั้นการแก้ข้อมูลจะอัปขึ้นคลาวด์อัตโนมัติ</div>
+          <div className="sync-desc">วาง URL ของ Google Apps Script Web App (ลงท้าย /exec) แล้วกดปุ่มเดียวเพื่อบันทึกและซิงก์ หลังจากนั้นข้อมูลจะอัปขึ้นคลาวด์อัตโนมัติ</div>
           <div className="sync-row">
             <input className="sync-input" type="url" inputMode="url" autoComplete="url" aria-label="URL สำหรับ Google Sync" value={syncUrl} onChange={e=>setSyncUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/>
-            <button className="backup-btn" style={{flex:"0 0 auto"}} onClick={saveSyncUrl}>บันทึก URL</button>
-            <button className="backup-btn" style={{flex:"0 0 auto"}} disabled={syncBusy} onClick={()=>syncNow()}>{syncBusy?"กำลังซิงก์…":"ซิงก์ตอนนี้"}</button>
+            <button className="backup-btn sync-action" disabled={syncBusy} onClick={saveAndSync}>{syncBusy?"กำลังซิงก์…":String(syncUrl||"").trim()===String(localStorage.getItem("raijai_sync_url")||"").trim()?"ซิงก์ตอนนี้":"บันทึกและซิงก์"}</button>
           </div>
-          {syncStatus&&<div className={`sync-status${syncStatus.startsWith("✅")?" ok":syncStatus.startsWith("❌")?" err":""}`}>{syncStatus}</div>}
+          {syncStatus&&<div role="status" aria-live="polite" className={`sync-status${syncStatus.startsWith("✅")?" ok":syncStatus.startsWith("❌")?" err":""}`}>{syncStatus}</div>}
+          {(lastSyncAt>0||pendingSyncCount>0)&&<div className="sync-meta">
+            {lastSyncAt>0&&<span>ซิงก์ล่าสุด {new Date(lastSyncAt).toLocaleString("th-TH",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</span>}
+            {pendingSyncCount>0&&<span className="sync-pending">มีข้อมูลรอส่ง {pendingSyncCount} รายการ • ยังเก็บอยู่ในเครื่อง</span>}
+          </div>}
         </div>
         <div className="backup-row">
           {lsGet("raijai_before_import_v1") && <button className="backup-btn" onClick={exportBeforeImport}>สำเนาก่อนนำเข้าครั้งล่าสุด</button>}
