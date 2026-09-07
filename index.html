@@ -10,73 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Sarabun',sans-serif;background:#EEF2EE;min-height:100vh;}
-/* ===== Desktop / Web Browser UI ===== */
-html, body { min-height:100%; }
-body {
-  background:#eef2ee;
-  overflow-x:hidden;
-}
-#root { min-height:100vh; }
-
-@media (min-width: 769px) {
-  body { padding: 28px 24px 40px; }
-  #root > div {
-    max-width: 1180px !important;
-    margin: 0 auto !important;
-    min-height: calc(100vh - 68px);
-    border-radius: 18px;
-    box-shadow: 0 8px 30px rgba(0,0,0,.08);
-    overflow: hidden;
-  }
-
-  /* Make desktop content breathe */
-  .section { margin-left: 28px !important; margin-right: 28px !important; }
-  .ov-cards { padding-left:28px !important; padding-right:28px !important; }
-  .ov-header { padding-left:28px !important; padding-right:28px !important; }
-  .backup-row { padding-left:28px !important; padding-right:28px !important; }
-
-  /* Two-column overview cards on desktop */
-  .ov-cards {
-    display:grid !important;
-    grid-template-columns: repeat(2, minmax(0,1fr));
-    gap:14px !important;
-  }
-  .ov-card.full { grid-column:1 / -1; }
-
-  /* Wider tables/lists */
-  .list-box { overflow-x:auto; }
-  .month-table { width:100%; }
-  .day-row { border-radius:10px; }
-
-  /* Desktop modal */
-  .modal {
-    width:min(720px, calc(100vw - 48px)) !important;
-    max-height:88vh !important;
-  }
-
-  /* Desktop month navigation */
-  .month-nav { max-width:720px; margin-left:auto; margin-right:auto; }
-}
-
-@media (min-width: 1200px) {
-  body { padding-left:40px; padding-right:40px; }
-  #root > div { max-width: 1240px !important; }
-  .section { margin-left:36px !important; margin-right:36px !important; }
-  .ov-cards, .ov-header, .backup-row {
-    padding-left:36px !important;
-    padding-right:36px !important;
-  }
-}
-
-@media (max-width: 768px) {
-  body { padding:0; }
-  #root > div {
-    width:100% !important;
-    min-height:100vh;
-    border-radius:0 !important;
-    box-shadow:none !important;
-  }
-}
+html,body,#root{min-height:100%;}
+body{overflow-x:hidden;}
 
 /* Improve browser controls */
 button, input, select { font-family:inherit; }
@@ -131,14 +66,7 @@ input, select { max-width:100%; }
   }
 }
 @media (max-width: 430px){
-  .fixed-list,
-  .category-summary,
-  .overview-fixed-list,
-  .fixed-expenses,
-  .daily-category-list {
-    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-    gap:8px !important;
-  }
+  .fixed-list,.category-summary,.overview-fixed-list,.fixed-expenses,.daily-category-list{gap:8px !important;}
 }
 
 /* Make common cards compact and consistent */
@@ -386,8 +314,6 @@ input, select { max-width:100%; }
 }
 .card,.summary-card,.stat-card,.panel,.box{
   border-radius:var(--ui-radius);
-}
-.card,.summary-card,.stat-card,.panel,.box{
   box-shadow:0 1px 3px rgba(15,23,42,.06);
 }
 .summary-grid,.stats-grid{
@@ -946,6 +872,11 @@ input[type="checkbox"]:focus-visible{
 .payment-status-option.active{background:#fff;color:#1B4332;box-shadow:0 1px 4px rgba(15,23,42,.08);}
 .payment-status-help{margin-top:6px;color:#667085;font-size:11px;line-height:1.45;}
 .day-item{display:block !important;}
+.month-nav{max-width:720px;margin-left:auto;margin-right:auto;}
+.add-btn,.sm-btn{min-height:44px;}
+.header-title,.section-title,.overview-section-title,.savings-title,.modal-title{margin:0;}
+.savings-title{font-size:14px;font-weight:700;color:#1B4332;}
+.balance-warning{display:inline-block;margin-left:7px;font-size:14px;font-weight:700;}
 @media(max-width:600px){
   .fixed-card-details,.daily-tools-panel,.daily-item-details{grid-template-columns:1fr;}
   .daily-detail-fields{grid-template-columns:1fr;}
@@ -2128,7 +2059,7 @@ function App() {
       {tab==="month"&&(<>
         <div className="header">
           <div className="header-top">
-            <span className="header-title">💰 บันทึกรายจ่าย</span>
+            <h1 className="header-title">💰 บันทึกรายจ่าย</h1>
             <button className="add-btn" disabled={!monthDataReady || hydratedMonthKey!==monthKey} onClick={()=>{setFPaymentStatus("paid");setModal(true);setModalTab("daily");}}>+ เพิ่มรายจ่าย</button>
           </div>
           <MainNav tab={tab} onChange={setTab}/>
@@ -2147,8 +2078,8 @@ function App() {
         <div className="cards-row">
           <div className="balance-card">
             <div className="balance-label">💵 เงินคงเหลือใช้ได้เดือนนี้</div>
-            <div className="balance-amount" style={{color:remaining<0?"#FCA5A5":"#fff"}}>
-              ฿{fmt(Math.abs(remaining))}{remaining<0&&<span style={{fontSize:14,marginLeft:6}}>⚠️ เกินงบ</span>}
+            <div className="balance-amount" style={{color:remaining<0?"#FCA5A5":"#fff"}} aria-live="polite">
+              {remaining<0?"−":""}฿{fmt(Math.abs(remaining))}{remaining<0&&<span className="balance-warning">⚠️ เกินงบ</span>}
             </div>
             <div className="balance-context">หลังหักเงินออม รายจ่ายที่จ่ายแล้ว และเงินที่กันไว้</div>
             <div className="balance-progress-head">
@@ -2189,7 +2120,7 @@ function App() {
 
           <div className="goal-card">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <span style={{fontSize:13,fontWeight:700,color:"#1B4332"}}>🏦 เงินออม</span>
+              <h2 className="savings-title">🏦 เงินออม</h2>
               <button className="sm-btn" onClick={addSavingItem}>+ เพิ่มออม</button>
             </div>
             {savingItems.length===0 ? (
@@ -2223,7 +2154,7 @@ function App() {
         {/* Fixed */}
         <div className="section" style={{marginTop:18}}>
           <div className="section-header">
-            <span className="section-title">รายจ่ายประจำเดือนนี้</span>
+            <h2 className="section-title">รายจ่ายประจำเดือนนี้</h2>
             <button className="sm-btn" onClick={()=>{setModal(true);setModalTab("fixed");}}>+ เพิ่ม</button>
           </div>
           {isNewMonth&&(
@@ -2275,7 +2206,7 @@ function App() {
         {/* Daily */}
         <div className="section" style={{marginTop:16}}>
           <div className="section-header">
-            <span className="section-title">รายจ่ายรายวัน</span>
+            <h2 className="section-title">รายจ่ายรายวัน</h2>
             <span className="daily-section-total"><span>จ่ายแล้ว</span><strong>฿{fmt(totalVar)}</strong></span>
           </div>
           <div className="daily-toolbar">
@@ -2355,7 +2286,7 @@ function App() {
           <MainNav tab={tab} onChange={setTab}/>
           <div className="month-nav" style={{marginBottom:4}}>
             <button className="month-btn" aria-label="ปีก่อนหน้า" onClick={()=>setOvYear(y=>y-1)}>‹</button>
-            <div className="month-label">ภาพรวมปี {ovYear}</div>
+            <h1 className="month-label">ภาพรวมปี {ovYear}</h1>
             <button className="month-btn" aria-label="ปีถัดไป" onClick={()=>setOvYear(y=>y+1)}>›</button>
           </div>
           <div style={{color:"#B7E4C7",fontSize:13}}>{activeMonths.length>0?`มีข้อมูล ${activeMonths.length} เดือน`:"ยังไม่มีข้อมูล"}</div>
@@ -2401,7 +2332,7 @@ function App() {
           </div>
           <div className="ov-card full">
             <div className="overview-section-head">
-              <span className="overview-section-title"><LineIcon name="table"/>สรุปรายเดือน</span>
+              <h2 className="overview-section-title"><LineIcon name="table"/>สรุปรายเดือน</h2>
               <span className="overview-section-hint">กดเดือนเพื่อดูรายละเอียด</span>
             </div>
             <div className="list-box" style={{boxShadow:"none",border:"1px solid #F3F4F6"}}>
@@ -2424,7 +2355,7 @@ function App() {
         </div>
 
         <div className="section" style={{marginTop:16}}>
-          <div className="overview-section-head"><span className="overview-section-title"><LineIcon name="category"/>รายจ่ายตามหมวดหมู่</span><span className="overview-section-hint">ทั้งปี</span></div>
+          <div className="overview-section-head"><h2 className="overview-section-title"><LineIcon name="category"/>รายจ่ายตามหมวดหมู่</h2><span className="overview-section-hint">ทั้งปี</span></div>
           <div className="category-tabs" role="tablist" aria-label="ประเภทรายจ่ายตามหมวดหมู่">
             {[['all','ทั้งหมด'],['daily','รายวัน'],['fixed','ประจำ']].map(([value,label])=><button type="button" role="tab" aria-selected={categoryView===value} className={`category-tab${categoryView===value?" active":""}`} key={value} onClick={()=>setCategoryView(value)}>{label}</button>)}
           </div>
@@ -2441,7 +2372,7 @@ function App() {
 
         <div className="section" style={{marginTop:16}}>
           <div className="overview-section-head">
-            <span className="overview-section-title"><LineIcon name="list"/>รายจ่ายประจำตามรายการ</span>
+            <h2 className="overview-section-title"><LineIcon name="list"/>รายจ่ายประจำตามรายการ</h2>
             <span className="overview-section-hint">฿{fmt(annualFixedTotal)} / ปี</span>
           </div>
           <div className="list-box two-col-fixed">
@@ -2469,7 +2400,7 @@ function App() {
 
         </> : <div className="overview-empty" role="status">
           <div className="overview-empty-icon"><LineIcon name="table"/></div>
-          <div className="overview-empty-title">ยังไม่มีข้อมูลในปี {ovYear}</div>
+          <h2 className="overview-empty-title">ยังไม่มีข้อมูลในปี {ovYear}</h2>
           <div className="overview-empty-desc">เริ่มบันทึกรายการแรก แล้วระบบจะสรุปรายรับ รายจ่าย และเงินคงเหลือให้อัตโนมัติ</div>
           <button className="overview-empty-action" onClick={()=>{setYear(ovYear);setTab("month");}}>ไปเพิ่มรายการ</button>
         </div>}
@@ -2500,7 +2431,7 @@ function App() {
       <div className="overlay" onClick={e=>e.target.classList?.contains("overlay")&&setModal(null)}>
         <div className="modal" role="dialog" aria-modal="true" aria-labelledby="expense-modal-title">
           <div className="modal-head">
-            <div className="modal-title" id="expense-modal-title">เพิ่มรายจ่าย</div>
+            <h2 className="modal-title" id="expense-modal-title">เพิ่มรายจ่าย</h2>
             <div className="modal-head-actions" aria-label="การทำงานของฟอร์ม">
               <button
                 className="modal-icon-btn cancel"
