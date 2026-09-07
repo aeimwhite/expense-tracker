@@ -877,7 +877,17 @@ input[type="checkbox"]:focus-visible{
 .header-title,.section-title,.overview-section-title,.savings-title,.modal-title{margin:0;}
 .savings-title{font-size:14px;font-weight:700;color:#1B4332;}
 .balance-warning{display:inline-block;margin-left:7px;font-size:14px;font-weight:700;}
+.carryover-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:4px;color:rgba(255,255,255,.82);font-size:12px;}
+.carryover-edit-hint{font-size:11px;opacity:.55;}
+.carryover-action{min-height:44px;margin-left:5px;padding:7px 11px;border:1px solid rgba(255,255,255,.3);border-radius:9px;background:rgba(255,255,255,.12);color:#fff;font:inherit;font-size:11px;font-weight:700;}
+.carryover-action:hover{background:rgba(255,255,255,.2);}
+.forecast-summary{margin-top:9px;padding:10px 11px;border:1px solid rgba(255,255,255,.16);border-radius:11px;background:rgba(255,255,255,.08);}
+.forecast-head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#E8F3EC;font-size:12px;}
+.forecast-head strong{color:#fff;font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.forecast-head strong.negative{color:#FCA5A5;}
+.forecast-sub{margin-top:3px;color:#BFD8C7;font-size:10px;line-height:1.45;}
 @media(max-width:600px){
+  .carryover-action{width:100%;margin:3px 0 0;}
   .fixed-card-details,.daily-tools-panel,.daily-item-details{grid-template-columns:1fr;}
   .daily-detail-fields{grid-template-columns:1fr;}
   .fixed-card-delete{width:100%;}
@@ -939,6 +949,7 @@ function validateBackup(data){
   for(const [key,md] of Object.entries(data.months)){
     if(!isMonthStorageKey(key) || !isRecord(md) || !items(md.fixedExpenses) || !isRecord(md.daily) || !isRecord(md.paid)) throw new Error("ข้อมูลเดือนไม่ถูกต้อง");
     if(md.income!=null && !money(md.income)) throw new Error("ข้อมูลรายรับรายเดือนไม่ถูกต้อง");
+    if(md.carryover!=null && !money(md.carryover)) throw new Error("ข้อมูลยอดยกมาไม่ถูกต้อง");
     // Keep legacy out-of-month days intact; date repair is a separate operation.
     if(!Object.entries(md.daily).every(([day,list])=>/^([1-9]|[12][0-9]|3[01])$/.test(day) && dailyItems(list))) throw new Error("ข้อมูลรายวันไม่ถูกต้อง");
     if(md.savingItems!=null && !items(md.savingItems)) throw new Error("ข้อมูลเงินออมไม่ถูกต้อง");
@@ -992,6 +1003,37 @@ const getLegacyIncome = () => {
 };
 const resolveMonthIncome = (monthData, fallback=getLegacyIncome()) =>
   isValidIncome(monthData?.income) ? Number(monthData.income) : Number(fallback)||0;
+const resolveCarryover = monthData =>
+  isValidIncome(monthData?.carryover) ? Number(monthData.carryover) : 0;
+const isFixedPaidItem = (monthData,item) => {
+  const paid=monthData?.paid;
+  if(paid && Object.prototype.hasOwnProperty.call(paid,item.id)) return !!paid[item.id];
+  return !!item.checked;
+};
+const summarizeMonth = monthData => {
+  if(!monthData || typeof monthData!=="object") return null;
+  const fixedPaid=(monthData.fixedExpenses||[])
+    .filter(item=>isFixedPaidItem(monthData,item))
+    .reduce((sum,item)=>sum+Number(item.amount||0),0);
+  const fixedUnpaid=(monthData.fixedExpenses||[])
+    .filter(item=>!isFixedPaidItem(monthData,item))
+    .reduce((sum,item)=>sum+Number(item.amount||0),0);
+  const daily=dailyFinancials(monthData.daily||{});
+  const savings=(monthData.savingItems||[]).reduce((sum,item)=>sum+Math.max(0,Number(item.amount)||0),0);
+  const income=resolveMonthIncome(monthData);
+  const carryover=resolveCarryover(monthData);
+  const remaining=income+carryover-savings-fixedPaid-daily.paid-daily.reserved;
+  const pending=fixedUnpaid+daily.unpaid;
+  return {income,carryover,fixedPaid,fixedUnpaid,daily,savings,remaining,pending,projectedRemaining:remaining-pending};
+};
+function getPreviousMonthSummary(year,month){
+  let y=year,m=month-1;
+  if(m<1){m=12;y--;}
+  const key=`raijai_${y}-${String(m).padStart(2,"0")}`;
+  const data=lsGet(key);
+  const summary=summarizeMonth(data);
+  return summary?{...summary,key,year:y,month:m}:null;
+}
 function getPrevIncome(year, month) {
   for(let i=1;i<=12;i++){
     let y=year, m=month-i;
@@ -1090,6 +1132,7 @@ function App() {
   const [year,  setYear]  = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth()+1);
   const [income,     setIncome]     = useState(0);
+  const [carryover,  setCarryover]  = useState(0);
   const [savingItems, setSavingItems] = useState([]);
   const [dailyBudgetSnapshots, setDailyBudgetSnapshots] = useState({});
   const [dailyBudgetSnapshotVersion, setDailyBudgetSnapshotVersion] = useState(0);
@@ -1299,6 +1342,7 @@ function App() {
       && data.daily && typeof data.daily==="object" && Object.keys(data.daily).length===0
       && data.paid && typeof data.paid==="object" && Object.keys(data.paid).length===0
       && Array.isArray(data.savingItems) && data.savingItems.length===0
+      && Number(data.carryover||0)===0
       && data.income==null;
   };
 
@@ -1386,7 +1430,7 @@ function App() {
         if(cfg){if(cfg.savingGoal!=null)setSavingGoal(cfg.savingGoal);if(cfg.monthlyBudget!=null)setMonthlyBudget(cfg.monthlyBudget);}
         // Resolve the active key AFTER the request, never from an old render closure.
         const key=activeMonthKeyRef.current, md=lsGet(key);
-        if(md){setIncome(resolveMonthIncome(md,cfg?.income));setFixed(md.fixedExpenses||[]);setDaily(md.daily||{});setPaid(md.paid||{});setSavingItems(md.savingItems||[]);setDailyBudgetSnapshots(md.dailyBudgetSnapshots||{});setDailyBudgetSnapshotVersion(Number(md.dailyBudgetSnapshotVersion)||0);}
+        if(md){setIncome(resolveMonthIncome(md,cfg?.income));setCarryover(resolveCarryover(md));setFixed(md.fixedExpenses||[]);setDaily(md.daily||{});setPaid(md.paid||{});setSavingItems(md.savingItems||[]);setDailyBudgetSnapshots(md.dailyBudgetSnapshots||{});setDailyBudgetSnapshotVersion(Number(md.dailyBudgetSnapshotVersion)||0);}
         setRecordsRevision(v=>v+1);
       }
       succeeded=true;
@@ -1436,6 +1480,7 @@ function App() {
       if(cancelled || activeMonthKeyRef.current !== loadingKey) return;
       if(md){
         setIncome(resolveMonthIncome(md));
+        setCarryover(resolveCarryover(md));
         setFixed(md.fixedExpenses || DEFAULT_FIXED);
         setDaily(md.daily || {});
         setPaid(md.paid || {});
@@ -1539,7 +1584,7 @@ function App() {
       // A failed Cloud read is not evidence that the month is new. Never copy the
       // previous month into the selected month when the cloud request failed.
       if(cloudConfigured && !cloudLoadSucceeded){
-        setFixed([]); setDaily({}); setPaid({}); setSavingItems([]);
+        setCarryover(0); setFixed([]); setDaily({}); setPaid({}); setSavingItems([]);
         setDailyBudgetSnapshots({}); setDailyBudgetSnapshotVersion(3);
         setIsNewMonth(false); setHydratedMonthKey(null); setMonthDataReady(false);
         setSyncStatus("❌ ยังโหลดเดือนไม่สำเร็จ กรุณาซิงก์แล้วเปิดเดือนนี้ใหม่");
@@ -1551,8 +1596,9 @@ function App() {
       const prevFixed = getPrevFixed(year, month);
       const copiedFixed = prevFixed.map(e => ({ ...e }));
       const copiedIncome = getPrevIncome(year, month);
-      const fresh={income:copiedIncome,fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:3,_updatedAt:Date.now()};
+      const fresh={income:copiedIncome,carryover:0,fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:3,_updatedAt:Date.now()};
       setIncome(copiedIncome);
+      setCarryover(0);
       setFixed(copiedFixed);
       setDaily({});
       setPaid({});
@@ -1592,7 +1638,7 @@ function App() {
     syncTimerRef.current=setTimeout(()=>syncNow(endpoint,true),800);
   };
 
-  const saveMonth = (fixed, daily, paid, savingsList, budgetSnapshots, targetKey=monthKey, syncCloud=true, incomeValue=income) => {
+  const saveMonth = (fixed, daily, paid, savingsList, budgetSnapshots, targetKey=monthKey, syncCloud=true, incomeValue=income, carryoverValue) => {
     // Ref check blocks callbacks from a previous month from saving into the newly selected month.
     if(targetKey !== activeMonthKeyRef.current) return false;
     if(!monthDataReady || hydratedMonthKey !== targetKey) return false;
@@ -1609,8 +1655,10 @@ function App() {
       Object.entries(paidSource || {}).filter(([id]) => fixedIds.has(id))
     );
 
+    const activeCarryover=carryoverValue===undefined?(typeof carryover==="undefined"?0:carryover):carryoverValue;
     const data={
       income: resolveMonthIncome({income:incomeValue},0),
+      carryover: Math.max(0,Number(activeCarryover)||0),
       fixedExpenses: fixedList,
       daily: daily ?? dailyEntries,
       paid:  paidClean,
@@ -1668,11 +1716,12 @@ function App() {
     if(!lsSet("raijai_config",data)) return false; queueCloudSave("raijai_config",data); return true;
   };
 
+  const currentMonthData={fixedExpenses,paid:paidFixed};
   const totalFixed = (fixedExpenses || [])
-      .filter(e => !!paidFixed[e.id])
+      .filter(e => isFixedPaidItem(currentMonthData,e))
       .reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const unpaidFixedTotal = (fixedExpenses || [])
-      .filter(e => !paidFixed[e.id])
+      .filter(e => !isFixedPaidItem(currentMonthData,e))
       .reduce((sum, e) => sum + Number(e.amount || 0), 0);
   // รายการเก่าที่ไม่มี paymentStatus ถือเป็น "จ่ายแล้ว" เพื่อรักษายอดเดิมทั้งหมด
   const dailyTotals = dailyFinancials(dailyEntries);
@@ -1692,13 +1741,16 @@ function App() {
     .filter(([d])=>isValidDay(d,daysInMonth(year,month)) && Number(d)>_todayNum)
     .flatMap(([,items])=>items).filter(item=>paymentStatusOf(item)==="paid").reduce((sum,it)=>sum+Number(it.amount||0),0) : 0;
   const totalSavings = savingItems.reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
-  // งบรายจ่ายคำนวณอัตโนมัติ: รายรับ - เงินออม - รายจ่ายประจำ
-  const spendableBudget = Math.max(0, income - totalSavings - totalFixed);
-  const availableAfterReserved = spendableBudget-reservedDailyTotal;
+  // เงินคงเหลือจริงอาจติดลบได้ ส่วนฐานงบรายวันถูกจำกัดไม่ให้ต่ำกว่า 0
+  const baseAvailable = income + carryover - totalSavings - totalFixed;
+  const spendableBudget = Math.max(0, baseAvailable);
+  const availableAfterReserved = baseAvailable-reservedDailyTotal;
   const remaining = availableAfterReserved-totalVar;
   // เงินกันไว้ลดวงเงินที่นำไปใช้ได้ทันที ส่วนรายจ่ายตามวันที่ยังคงหลักงบวันนี้เดิม
   const remainingForDaily = availableAfterReserved-pastAndTodayVar;
   const totalExp   = totalFixed + totalVar;
+  const pendingTotal = unpaidFixedTotal + unpaidDailyTotal;
+  const projectedRemaining = remaining - pendingTotal;
   const savings    = totalSavings;
   const goalPct    = income>0?Math.min(100,(totalSavings/income)*100):0;
   const budgetPctRaw = spendableBudget>0 ? ((totalVar+reservedDailyTotal)/spendableBudget)*100 : 0;
@@ -1864,6 +1916,12 @@ function App() {
     if(!saveMonth(null,null,null,null,null,monthKey,true,n))return false;
     setIncome(n);return true;
   };
+  const saveCarryover = v=>{
+    if(amountError(v)) return false;
+    const n=Number(v);
+    if(!saveMonth(null,null,null,null,null,monthKey,true,income,n)) return false;
+    setCarryover(n);return true;
+  };
   const saveGoal = v=>{
     if(amountError(v))return false;
     const n=Number(v);if(!saveConfig(null,n))return false;setSavingGoal(n);return true;
@@ -1960,11 +2018,7 @@ function App() {
   const todayDay = now.getMonth()+1===month&&now.getFullYear()===year?now.getDate():null;
 
   // Overview — ใช้นิยาม "รายจ่ายประจำที่จ่ายแล้ว" ให้ตรงกับหน้ารายเดือน
-  const isFixedPaid = (monthData, item) => {
-    const paid = monthData?.paid;
-    if(paid && Object.prototype.hasOwnProperty.call(paid,item.id)) return !!paid[item.id];
-    return !!item.checked; // fallback สำหรับข้อมูลเก่าที่ยังเก็บสถานะไว้ในรายการ
-  };
+  const isFixedPaid = (monthData, item) => isFixedPaidItem(monthData,item);
   const sumPaidFixed = monthData =>
     (monthData?.fixedExpenses||[])
       .filter(e=>isFixedPaid(monthData,e))
@@ -1982,17 +2036,21 @@ function App() {
     const savings=(d.savingItems||[]).reduce((s,e)=>s+Math.max(0,Number(e.amount)||0),0);
     const total=fx+varExp;
     const monthIncome=resolveMonthIncome(d);
-    const remaining=monthIncome-savings-total-reserved;
+    const carryover=resolveCarryover(d);
+    const fixedUnpaid=(d.fixedExpenses||[]).filter(item=>!isFixedPaid(d,item)).reduce((sum,item)=>sum+Number(item.amount||0),0);
+    const pending=fixedUnpaid+unpaid;
+    const remaining=monthIncome+carryover-savings-total-reserved;
+    const projectedRemaining=remaining-pending;
     const hasExplicitIncome=!!record && isValidIncome(record.income) && Number(record.income)>0;
-    const hasActivity=fx>0||varExp>0||reserved>0||unpaid>0||savings>0;
-    return {month:i+1,income:monthIncome,fx,varExp,reserved,unpaid,savings,total,remaining,hasData:!!record&&(hasExplicitIncome||hasActivity)};
+    const hasActivity=fx>0||varExp>0||reserved>0||unpaid>0||savings>0||carryover>0||fixedUnpaid>0;
+    return {month:i+1,income:monthIncome,carryover,fx,fixedUnpaid,varExp,reserved,unpaid,pending,savings,total,remaining,projectedRemaining,hasData:!!record&&(hasExplicitIncome||hasActivity)};
   });
   const activeMonths = ovStats.filter(m=>m.hasData);
   const ovTotalExp = activeMonths.reduce((s,m)=>s+m.total,0);
   const ovTotalInc = activeMonths.reduce((sum,m)=>sum+m.income,0);
   const ovTotalSav = activeMonths.reduce((s,m)=>s+m.savings,0);
-  const ovTotalReserved = activeMonths.reduce((s,m)=>s+m.reserved,0);
-  const ovTotalRemaining = activeMonths.reduce((s,m)=>s+m.remaining,0);
+  const latestActiveMonth = activeMonths[activeMonths.length-1]||null;
+  const ovLatestRemaining = latestActiveMonth?.remaining||0;
 
   // รวมเฉพาะรายจ่ายประจำที่ "จ่ายแล้ว" ของแต่ละเดือน
   // เพื่อให้ยอดรวมปี / แยกรายการ / แยกหมวดหมู่ ใช้ฐานเดียวกับหน้ารายเดือน
@@ -2037,6 +2095,8 @@ function App() {
   const annualAllCategories=Object.entries(combinedCategoryTotals).sort((a,b)=>b[1]-a[1]);
   const displayedCategories=categoryView==="daily"?annualCategories:categoryView==="fixed"?annualFixedCategories:annualAllCategories;
   const displayedCategoryTotal=displayedCategories.reduce((sum,[,total])=>sum+total,0);
+  const previousMonthSummary=getPreviousMonthSummary(year,month);
+  const suggestedCarryover=Math.max(0,Number(previousMonthSummary?.remaining)||0);
   const currentMonthItems = Object.values(dailyEntries).flat();
   const matchesFilter = it=>{
     const q=searchTerm.trim().toLowerCase();
@@ -2073,6 +2133,12 @@ function App() {
             <Editable value={income} allowZero={false} onSave={saveIncome} prefix="฿" style={{color:"rgba(255,255,255,0.9)",fontSize:13,fontWeight:600}}/>
             <span style={{fontSize:11,opacity:.45,marginLeft:4}}>(แตะแก้ไข)</span>
           </div>
+          <div className="carryover-row">
+            <span>ยอดยกมา:</span>
+            <Editable value={carryover} onSave={saveCarryover} prefix="฿" style={{color:"#fff",fontSize:13,fontWeight:700}}/>
+            <span className="carryover-edit-hint">(แตะแก้ไข)</span>
+            {carryover===0&&suggestedCarryover>0&&<button type="button" className="carryover-action" disabled={!monthDataReady} onClick={()=>saveCarryover(suggestedCarryover)}>นำ ฿{fmt(suggestedCarryover)} จาก {MONTH_SHORT[previousMonthSummary.month-1]} มาใช้</button>}
+          </div>
         </div>
 
         <div className="cards-row">
@@ -2081,7 +2147,7 @@ function App() {
             <div className="balance-amount" style={{color:remaining<0?"#FCA5A5":"#fff"}} aria-live="polite">
               {remaining<0?"−":""}฿{fmt(Math.abs(remaining))}{remaining<0&&<span className="balance-warning">⚠️ เกินงบ</span>}
             </div>
-            <div className="balance-context">หลังหักเงินออม รายจ่ายที่จ่ายแล้ว และเงินที่กันไว้</div>
+            <div className="balance-context">รายรับ + ยอดยกมา − เงินออม − รายจ่ายที่จ่ายแล้ว − เงินที่กันไว้</div>
             <div className="balance-progress-head">
               <span>ใช้หรือกันงบรายวันแล้ว</span>
               <span>{budgetPct.toFixed(0)}%</span>
@@ -2096,6 +2162,10 @@ function App() {
             {(reservedDailyTotal>0||unpaidDailyTotal>0)&&<div className="payment-hold-summary">
               {reservedDailyTotal>0&&<div className="payment-hold-row"><span>กันเงินไว้ใช้จ่ายแล้ว</span><strong>฿{fmt(reservedDailyTotal)}</strong></div>}
               {unpaidDailyTotal>0&&<div className="payment-hold-row unpaid"><span>ยังไม่จ่าย · ยังไม่หักเงิน</span><strong>฿{fmt(unpaidDailyTotal)}</strong></div>}
+            </div>}
+            {pendingTotal>0&&<div className="forecast-summary">
+              <div className="forecast-head"><span>คาดว่าจะเหลือหลังจ่ายทั้งหมด</span><strong className={projectedRemaining<0?"negative":""}>{projectedRemaining<0?"−":""}฿{fmt(Math.abs(projectedRemaining))}</strong></div>
+              <div className="forecast-sub">หักรายการประจำและรายวันที่ยังไม่จ่าย ฿{fmt(pendingTotal)} แล้ว</div>
             </div>}
             <div style={{marginTop:12,padding:"12px 14px",borderRadius:14,background:"rgba(255,255,255,.10)",border:"1px solid rgba(255,255,255,.10)"}}>
               <div style={{fontSize:11,color:"#D1FAE5",fontWeight:700}}>{isCurrentMonth?"📅 งบวันนี้ (คงที่)":"📅 งบเฉลี่ยต่อวัน"}</div>
@@ -2146,7 +2216,7 @@ function App() {
               <div className="progress-fill" style={{width:`${goalPct}%`,background:"#1B4332"}}/>
             </div>
             <div style={{fontSize:11,color:"#9CA3AF",marginTop:5}}>
-              คิดเป็น {goalPct.toFixed(0)}% ของรายได้ · เหลือเป็นงบใช้จ่าย ฿{fmt(spendableBudget)}
+              คิดเป็น {goalPct.toFixed(0)}% ของรายได้ · งบใช้จ่ายหลังรวมยอดยกมา ฿{fmt(spendableBudget)}
             </div>
           </div>
         </div>
@@ -2296,10 +2366,13 @@ function App() {
         {activeMonths.length ? <>
         <div className="ov-cards overview-summary-grid">
           <div className="ov-card overview-primary">
-            <div className="ov-clabel ov-title-row"><LineIcon name="balance"/>เงินคงเหลือรวมปี</div>
-            <div className={`ov-camt ${ovTotalRemaining<0?"danger":"success"}`}>{ovTotalRemaining<0?"−":""}฿{fmt(Math.abs(ovTotalRemaining))}</div>
-            <div className="ov-csub">รายรับ − เงินออม − รายจ่าย − เงินกันไว้</div>
-            {ovTotalReserved>0&&<div className="overview-expense-detail"><span>กันเงินไว้ ฿{fmt(ovTotalReserved)}</span></div>}
+            <div className="ov-clabel ov-title-row"><LineIcon name="balance"/>เงินคงเหลือเดือนล่าสุด</div>
+            <div className={`ov-camt ${ovLatestRemaining<0?"danger":"success"}`}>{ovLatestRemaining<0?"−":""}฿{fmt(Math.abs(ovLatestRemaining))}</div>
+            <div className="ov-csub">{MONTH_FULL[latestActiveMonth.month-1]} · รวมยอดยกมาและเงินกันไว้แล้ว</div>
+            {(latestActiveMonth.pending>0||latestActiveMonth.carryover>0)&&<div className="overview-expense-detail">
+              {latestActiveMonth.carryover>0&&<span>ยอดยกมา ฿{fmt(latestActiveMonth.carryover)}</span>}
+              {latestActiveMonth.pending>0&&<span>หลังจ่ายทั้งหมด {latestActiveMonth.projectedRemaining<0?"−":""}฿{fmt(Math.abs(latestActiveMonth.projectedRemaining))}</span>}
+            </div>}
           </div>
           <div className="ov-card overview-kpi">
             <div className="ov-clabel ov-title-row"><LineIcon name="income"/>รายรับรวมปี</div>
@@ -2345,7 +2418,7 @@ function App() {
                       <td className="num mobile-optional">฿{fmt(ms.income)}</td>
                       <td className="num mobile-primary">฿{fmt(ms.total)}</td>
                       <td className="num mobile-optional">฿{fmt(ms.savings)}</td>
-                      <td className={`num mobile-primary${ms.remaining<0?" neg":" pos"}`}>{ms.remaining>=0?"+":""}฿{fmt(ms.remaining)}</td>
+                      <td className={`num mobile-primary${ms.remaining<0?" neg":" pos"}`}>{ms.remaining<0?"−":"+"}฿{fmt(Math.abs(ms.remaining))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2516,7 +2589,7 @@ function App() {
                 <div className="payment-status-picker" role="group" aria-labelledby="payment-status-label">
                   {PAYMENT_STATUSES.map(status=><button type="button" key={status} className={`payment-status-option${fPaymentStatus===status?" active":""}`} aria-pressed={fPaymentStatus===status} onClick={()=>setFPaymentStatus(status)}>{PAYMENT_STATUS_LABELS[status]}</button>)}
                 </div>
-                <div className="payment-status-help">{fPaymentStatus==="reserved"?"หักจากเงินใช้ได้ทันที แต่ยังไม่นับเป็นรายจ่าย":fPaymentStatus==="unpaid"?"บันทึกไว้ก่อน โดยยังไม่หักเงิน":"นับเป็นรายจ่ายที่จ่ายแล้วทันที"}</div>
+                <div className="payment-status-help">{fPaymentStatus==="reserved"?"หักจากเงินใช้ได้ทันที แต่ยังไม่นับเป็นรายจ่าย":fPaymentStatus==="unpaid"?"ใช้วางแผนค่าใช้จ่ายล่วงหน้า ยังไม่หักเงินจริง แต่รวมในยอดคาดการณ์":"นับเป็นรายจ่ายที่จ่ายแล้วทันที"}</div>
               </div>
               {(showNote || !!fNote.trim()) && (
                 <div className="form-group">
