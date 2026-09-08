@@ -852,10 +852,9 @@ input[type="checkbox"]:focus-visible{
 .daily-item-details{display:grid;grid-template-columns:minmax(150px,1fr) auto;align-items:end;gap:10px;width:100%;margin-top:8px;padding:10px;border-radius:10px;background:#F7FAF8;}
 .daily-detail-field{display:grid;gap:5px;color:#667085;font-size:11px;}
 .daily-detail-actions{display:flex;align-items:center;gap:6px;}
-.daily-secondary-btn,.daily-delete-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:8px 11px;border:1px solid #DCE5DF;border-radius:9px;background:#fff;color:#52635A;font:inherit;font-size:12px;font-weight:600;}
+.daily-delete-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:8px 11px;border:1px solid #DCE5DF;border-radius:9px;background:#fff;color:#52635A;font:inherit;font-size:12px;font-weight:600;}
 .daily-delete-btn{border-color:#F3D2D2;background:#FFF1F1;color:#A13A3A;}
 .daily-paid-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:8px 11px;border:1px solid #BFD8C7;border-radius:9px;background:#E8F3EC;color:#17603A;font:inherit;font-size:12px;font-weight:700;}
-.daily-secondary-btn:disabled{opacity:.45;cursor:not-allowed;}
 .payment-hold-summary{margin-top:8px;border:1px solid rgba(253,230,138,.28);border-radius:10px;background:rgba(146,64,14,.15);overflow:hidden;}
 .payment-hold-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:38px;padding:7px 11px;color:#FEF3C7;font-size:12px;}
 .payment-hold-row+.payment-hold-row{border-top:1px solid rgba(255,255,255,.12);}
@@ -925,7 +924,6 @@ const dailyDayKeys = (entries,count) => Object.keys(entries)
   .filter(day=>Array.isArray(entries[day]) && entries[day].length)
   .sort((a,b)=>Number(isValidDay(a,count))-Number(isValidDay(b,count)) || Number(a)-Number(b) || a.localeCompare(b));
 const paymentStatusOf = item => PAYMENT_STATUSES.includes(item?.paymentStatus)?item.paymentStatus:"paid";
-const duplicatedPaymentStatus = item => paymentStatusOf(item)==="reserved"?"unpaid":paymentStatusOf(item);
 const dailyFinancials = entries => Object.values(entries||{}).flat().reduce((totals,item)=>{
   const status=paymentStatusOf(item);
   totals[status]+=Number(item.amount||0);
@@ -983,8 +981,8 @@ function replaceBackupLocally(data, endpoint){
   }
 }
 
-// หา fixed ของเดือนก่อนหน้า (ย้อนไปได้สูงสุด 12 เดือน)
-function getPrevFixed(year, month) {
+// หารายจ่ายประจำล่าสุดก่อนเดือนที่เลือก (ย้อนไปได้สูงสุด 12 เดือน)
+function findPrevFixed(year, month) {
   for(let i=1;i<=12;i++){
     let y=year, m=month-i;
     while(m<1){m+=12;y--;}
@@ -992,7 +990,10 @@ function getPrevFixed(year, month) {
     const d=lsGet(k);
     if(d?.fixedExpenses?.length) return d.fixedExpenses;
   }
-  return DEFAULT_FIXED;
+  return null;
+}
+function getPrevFixed(year, month) {
+  return findPrevFixed(year,month) || DEFAULT_FIXED;
 }
 
 const isValidIncome = value => value!==null && value!==undefined && String(value).trim()!==""
@@ -1663,7 +1664,7 @@ function App() {
       // Cloud read succeeded and explicitly has no record (or no Sync is configured):
       // this is a genuinely new month, so copy the previous month's fixed list.
       const prevFixed = getPrevFixed(year, month);
-      const copiedFixed = prevFixed.map(e => ({ ...e }));
+      const copiedFixed = prevFixed.map(e => ({ ...e, id:mkid(), checked:false }));
       const copiedIncome = getPrevIncome(year, month);
       const fresh={income:copiedIncome,carryover:0,fixedExpenses:copiedFixed,daily:{},paid:{},savingItems:[],dailyBudgetSnapshots:{},dailyBudgetSnapshotVersion:3,_updatedAt:Date.now()};
       setIncome(copiedIncome);
@@ -1942,13 +1943,14 @@ function App() {
     setLastDeleted({type:"daily",monthKey,day,idx,item:removed});setDaily(upd);
     return true;
   };
-  const duplicateDaily = (day,idx)=>{
-    if(!canEditMonth() || !isValidDay(day,days)) return false;
-    const src=dailyEntries[day]?.[idx]; if(!src) return false;
-    const copy={...src,id:mkid(),paymentStatus:duplicatedPaymentStatus(src)};
-    const upd={...dailyEntries,[day]:[...(dailyEntries[day]||[]),copy]};
-    if(!saveMonth(null,upd,null)) return false;
-    setDaily(upd);setExpDay(day);return true;
+  const copyFixedFromPrevious = ()=>{
+    if(!canEditMonth() || fixedExpenses.length) return false;
+    const previous=findPrevFixed(year,month);
+    if(!previous){alert("ไม่พบรายจ่ายประจำจาก 12 เดือนก่อนหน้า");return false;}
+    const copied=previous.map(item=>({...item,id:mkid(),checked:false}));
+    if(!saveMonth(copied,null,{})) return false;
+    setFixed(copied);setPaid({});setFixedView("unpaid");setIsNewMonth(true);
+    return true;
   };
   const delFixed = id=>{
     if(!canEditMonth()) return false;
@@ -2317,6 +2319,10 @@ function App() {
             {[["unpaid","ยังไม่จ่าย"],["all","ทั้งหมด"],["paid","จ่ายแล้ว"]].map(([value,label])=><button type="button" role="tab" aria-selected={fixedView===value} className={`fixed-filter-tab${fixedView===value?" active":""}`} key={value} onClick={()=>{setFixedView(value);setExpandedFixedId(null);}}>{label}<span className="fixed-filter-count">{fixedCounts[value]}</span></button>)}
           </div>
           <div className="list-box two-col-fixed">
+            {fixedExpenses.length===0&&<div className="fixed-empty">
+              <div>ยังไม่มีรายจ่ายประจำเดือนนี้</div>
+              <button type="button" className="daily-tool-btn" onClick={copyFixedFromPrevious}>คัดลอกจากเดือนก่อน</button>
+            </div>}
             {visibleFixedExpenses.map(e=>{
               const isExpanded=expandedFixedId===e.id;
               return (
@@ -2411,7 +2417,6 @@ function App() {
                             </div>
                             <div className="daily-detail-actions">
                               {paymentStatus!=="paid"&&<button type="button" className="daily-paid-btn" aria-label={`ทำเครื่องหมายว่า ${it.name} จ่ายแล้ว`} onClick={()=>saveDailyPaymentStatus(String(d),idx,"paid")}>✓ จ่ายแล้ว</button>}
-                              <button type="button" className="daily-secondary-btn" aria-label={invalidDay?`แก้วันที่ของ ${it.name} ก่อนทำซ้ำ`:`ทำซ้ำ ${it.name}`} disabled={invalidDay} onClick={()=>duplicateDaily(String(d),idx)}><svg className="action-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>ทำซ้ำ</button>
                               <button type="button" className="daily-delete-btn" aria-label={`ลบ ${it.name}`} onClick={()=>delDaily(String(d),idx)}><svg className="action-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v6M14 10v6"/></svg>ลบ</button>
                             </div>
                           </div>}
